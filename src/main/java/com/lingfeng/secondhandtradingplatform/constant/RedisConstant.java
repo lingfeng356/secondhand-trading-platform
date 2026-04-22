@@ -1,0 +1,9 @@
+package com.lingfeng.secondhandtradingplatform.constant;
+
+public class RedisConstant {
+    public static final String LOGIN_CODE_KEY = "login:code:phone:";
+    public static final long LOGIN_CODE_TTL = 60L;
+
+    public static final String LOGIN_TOKEN_KEY = "login:token:";
+    public static final long LOGIN_USER_TTL = 30L;
+}

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>二手交易平台</title>
+</head>
+<body>
+<input id="phone" placeholder="手机号">
+<button onclick="sendCode()">发送验证码</button>
+<input id="code" placeholder="验证码">
+<button onclick="login()">登录</button>
+
+<script>
+    async function sendCode() {
+        let phone = document.getElementById('phone').value;
+        await fetch('/user/sendCode?phone=' + phone, {method: 'POST'});
+        alert('验证码已发送，查看控制台');
+    }
+
+    async function login() {
+        let phone = document.getElementById('phone').value;
+        let code = document.getElementById('code').value;
+        let res = await fetch('/user/login?phone=' + phone + '&code=' + code);
+        let data = await res.json();
+        if (data.code === 200) {
+            localStorage.setItem('token', data.data);
+            alert('登录成功，token已保存');
+        } else {
+            alert(data.message);
+        }
+    }
+</script>
+</body>
+</html>
