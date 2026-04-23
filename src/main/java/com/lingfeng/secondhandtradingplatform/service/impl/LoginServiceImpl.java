@@ -29,9 +29,9 @@ public class LoginServiceImpl extends ServiceImpl<UserMapper,User> implements Lo
     private StringRedisTemplate stringRedisTemplate;
     @Autowired
     private UserMapper userMapper;
-
+    //验证码登录
     @Override
-    public Result login(String phone, String code) {
+    public Result loginByCode(String phone, String code) {
         //确认手机号是否符合格式
         if(!UserUtils.checkPhone(phone)){
             log.info("正在确认手机号:{}是否符合格式",phone);
@@ -65,7 +65,7 @@ public class LoginServiceImpl extends ServiceImpl<UserMapper,User> implements Lo
         //将user对象转变为userDTO对象,防止私密信息泄露
         UserDTO userDTO = BeanUtil.copyProperties(user,UserDTO.class);
 
-        //将userDTO对象转换为hashmap保存到redis中
+        //将userDTO对象转换为hashmap保存到redis中,查询基本信息时可以快速查询缓存获取
         Map<String,Object> tempMap = BeanUtil.beanToMap(userDTO);
         Map<String,String> userMap = new HashMap<>();
         //将其中的对象全都转化为String类型
@@ -84,7 +84,7 @@ public class LoginServiceImpl extends ServiceImpl<UserMapper,User> implements Lo
 
         return Result.success(token);
     }
-
+    //发送验证码
     @Override
     public Result sendCode(String phone) {
         //确认手机号是否符合格式
@@ -105,6 +105,56 @@ public class LoginServiceImpl extends ServiceImpl<UserMapper,User> implements Lo
         return Result.success();
     }
 
+    @Override
+    public Result loginByPassword(String phone, String password) {
+        //确认手机号是否符合格式
+        if(!UserUtils.checkPhone(phone)){
+            log.info("正在确认手机号:{}是否符合格式",phone);
+            return Result.error("手机号格式错误,请重新输入");
+        }
+        //查询数据库中用户的密码
+        User user = query().eq("phone",phone).one();
+        log.info("正在查询手机号为:{}的用户",phone);
+        //如果用户为null,返回错误
+        if(user == null){
+            log.info("用户不存在,登录失败");
+            return Result.error("用户不存在,登录失败");
+        }
+        //如果用户存在,比较密码
+        String realPassword = user.getPassword();
+        //如果密码不正确,返回报错
+        if(!realPassword.equals(password)){
+            log.info("密码错误,登录失败");
+            return Result.error("密码错误,登录失败");
+        }
+        //随机生成一个token作为当前用户的登陆令牌
+        String token = UUID.randomUUID().toString(true);
+        log.info("正在生成登录令牌,登录令牌为:{}",token);
+
+        //将user对象转变为userDTO对象,防止私密信息泄露
+        UserDTO userDTO = BeanUtil.copyProperties(user,UserDTO.class);
+
+        //将userDTO对象转换为hashmap保存到redis中
+        Map<String,Object> tempMap = BeanUtil.beanToMap(userDTO);
+        Map<String,String> userMap = new HashMap<>();
+        //将其中的对象全都转化为String类型
+        for (Map.Entry<String, Object> entry : tempMap.entrySet()) {
+            if (entry.getValue() != null) {
+                userMap.put(entry.getKey(), String.valueOf(entry.getValue()));
+            }
+        }
+        //TODO:一个用户只能有一个token，现在问题是一个用户反复登录会导致多个token产生
+        String tokenKey = LOGIN_TOKEN_KEY + token;
+        stringRedisTemplate.opsForHash().putAll(tokenKey,userMap);
+        //设置时效性
+        stringRedisTemplate.expire(tokenKey,LOGIN_USER_TTL,TimeUnit.MINUTES);
+        //将token返回前端和用户
+        log.info("用户手机号:{}登录成功",phone);
+
+        return Result.success(token);
+    }
+
+    //创建新用户
     private User createUserWithPhone(String phone){
         User user = new User();
         user.setPhone(phone);

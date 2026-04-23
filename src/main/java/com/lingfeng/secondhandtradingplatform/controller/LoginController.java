@@ -14,10 +14,10 @@ public class LoginController {
     @Autowired
     private LoginService loginService;
 
-    //确认登录
-    @GetMapping("/user/login")
-    public Result login(String phone,String code){
-        return loginService.login(phone,code);
+    //验证码登录
+    @GetMapping("/user/loginByCode")
+    public Result loginByCode(String phone,String code){
+        return loginService.loginByCode(phone,code);
     }
 
     //发送验证码
@@ -25,4 +25,10 @@ public class LoginController {
     public Result sendCode(@RequestParam String phone){
         return loginService.sendCode(phone);
     }
+
+    @GetMapping("/user/loginByPassword")
+    public Result loginByPassword(String phone,String password){
+        return loginService.loginByPassword(phone,password);
+    }
+
 }
