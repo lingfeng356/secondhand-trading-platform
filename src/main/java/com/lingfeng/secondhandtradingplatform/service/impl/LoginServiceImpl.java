@@ -43,7 +43,7 @@ public class LoginServiceImpl extends ServiceImpl<UserMapper,User> implements Lo
         log.info("正在确认验证码是否正确");
         if(realCode == null || !realCode.equals(code)){
             log.info("验证码错误");
-            return Result.error("验证码错误,请重新登录");
+            return Result.error("验证码错误或过期,请重新登录");
         }
 
         //登录成功后删除redis中的验证码
@@ -147,7 +147,7 @@ public class LoginServiceImpl extends ServiceImpl<UserMapper,User> implements Lo
         String tokenKey = LOGIN_TOKEN_KEY + token;
         stringRedisTemplate.opsForHash().putAll(tokenKey,userMap);
         //设置时效性
-        stringRedisTemplate.expire(tokenKey,LOGIN_USER_TTL,TimeUnit.MINUTES);
+            stringRedisTemplate.expire(tokenKey,LOGIN_USER_TTL,TimeUnit.MINUTES);
         //将token返回前端和用户
         log.info("用户手机号:{}登录成功",phone);
 

@@ -6,4 +6,7 @@ public class RedisConstant {
 
     public static final String LOGIN_TOKEN_KEY = "login:token:";
     public static final long LOGIN_USER_TTL = 30L;
+
+    public static final String PRODUCT_KEY = "product:";
+    public static final long PRODUCT_TTL = 30L;
 }

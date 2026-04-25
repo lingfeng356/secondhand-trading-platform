@@ -33,7 +33,7 @@ public class Result{
     //3.失败
     public static Result error(String message){
         Result result = new Result();
-        result.setCode(500);
+        result.setCode(400);
         result.setMessage(message);
         return result;
     }

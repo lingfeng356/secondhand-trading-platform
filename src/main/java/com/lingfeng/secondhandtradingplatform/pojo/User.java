@@ -16,4 +16,6 @@ public class User {
     private String password;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
+    private String img;
+    private String address;
 }

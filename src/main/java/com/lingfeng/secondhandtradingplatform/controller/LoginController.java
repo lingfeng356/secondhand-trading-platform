@@ -1,6 +1,7 @@
 package com.lingfeng.secondhandtradingplatform.controller;
 
 
+import com.lingfeng.secondhandtradingplatform.DTO.LoginRequest;
 import com.lingfeng.secondhandtradingplatform.DTO.Result;
 import com.lingfeng.secondhandtradingplatform.service.LoginService;
 import lombok.extern.slf4j.Slf4j;
@@ -15,19 +16,24 @@ public class LoginController {
     private LoginService loginService;
 
     //验证码登录
-    @GetMapping("/user/loginByCode")
-    public Result loginByCode(String phone,String code){
+    @PostMapping("/user/loginByCode")
+    public Result loginByCode(@RequestBody LoginRequest loginRequest){
+        String phone = loginRequest.getPhone();
+        String code = loginRequest.getCode();
         return loginService.loginByCode(phone,code);
     }
 
     //发送验证码
     @PostMapping("/user/sendCode")
-    public Result sendCode(@RequestParam String phone){
+    public Result sendCode(@RequestBody LoginRequest loginRequest){
+        String phone = loginRequest.getPhone();
         return loginService.sendCode(phone);
     }
 
-    @GetMapping("/user/loginByPassword")
-    public Result loginByPassword(String phone,String password){
+    @PostMapping("/user/loginByPassword")
+    public Result loginByPassword(@RequestBody LoginRequest loginRequest){
+        String phone = loginRequest.getPhone();
+        String password = loginRequest.getPassword();
         return loginService.loginByPassword(phone,password);
     }
 
