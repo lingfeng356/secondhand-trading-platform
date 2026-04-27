@@ -30,11 +30,14 @@ public class LoginController {
         return loginService.sendCode(phone);
     }
 
+    //密码登录
     @PostMapping("/user/loginByPassword")
     public Result loginByPassword(@RequestBody LoginRequest loginRequest){
         String phone = loginRequest.getPhone();
         String password = loginRequest.getPassword();
         return loginService.loginByPassword(phone,password);
     }
+
+    //退出登录
 
 }

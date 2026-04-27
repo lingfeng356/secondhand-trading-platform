@@ -3,8 +3,10 @@ package com.lingfeng.secondhandtradingplatform.service.impl;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.lingfeng.secondhandtradingplatform.DTO.ProductListRequestDTO;
 import com.lingfeng.secondhandtradingplatform.DTO.Result;
 import com.lingfeng.secondhandtradingplatform.mapper.ProductMapper;
 import com.lingfeng.secondhandtradingplatform.pojo.Product;
@@ -14,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -319,6 +322,68 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
 
         //返回结果
         return Result.success(page);
+    }
+
+    //查询商品列表
+    @Override
+    public Result showMyList(ProductListRequestDTO productListRequestDTO) {
+        //构建分页对象
+        int pageNum = productListRequestDTO.getPageNum() == null ? 1 : productListRequestDTO.getPageNum();
+        int pageSize = productListRequestDTO.getPageSize() == null ? 10 : productListRequestDTO.getPageSize();
+        Page<Product> page = new Page<>(pageNum,pageSize);
+
+        //构建查询条件
+        LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
+
+        //分类筛选
+        if(StringUtils.hasText(productListRequestDTO.getCategory())){
+            wrapper.eq(Product::getCategory,productListRequestDTO.getCategory());//mybatis-plus会将这个方法引用转变成category字符串
+        }
+
+        //价格范围筛选(qs:如果都为null会怎么样子)
+        if(productListRequestDTO.getMinPrice() != null){
+            wrapper.ge(Product::getPrice,productListRequestDTO.getMinPrice());
+        }
+        if(productListRequestDTO.getMaxPrice() != null){
+            wrapper.le(Product::getPrice,productListRequestDTO.getMaxPrice());
+        }
+
+        //城市筛选
+        if(StringUtils.hasText(productListRequestDTO.getCity())){
+            wrapper.eq(Product::getCity,productListRequestDTO.getCity());
+        }
+
+        //搜索栏模糊查询
+        if(StringUtils.hasText(productListRequestDTO.getTitle())){
+            wrapper.like(Product::getTitle,productListRequestDTO.getTitle());
+        }
+
+        //排序
+        String sortBy = productListRequestDTO.getSortBy();
+        String sortOrder = productListRequestDTO.getSortOrder();
+
+        if ("price".equals(sortBy)) {
+            if ("asc".equalsIgnoreCase(sortOrder)) {
+                wrapper.orderByAsc(Product::getPrice);
+            } else {
+                wrapper.orderByDesc(Product::getPrice);
+            }
+        } else if ("createTime".equals(sortBy)) {
+            if ("asc".equalsIgnoreCase(sortOrder)) {
+                wrapper.orderByAsc(Product::getCreateTime);
+            } else {
+                wrapper.orderByDesc(Product::getCreateTime);
+            }
+        } else {
+            // 默认按创建时间倒序
+            wrapper.orderByDesc(Product::getCreateTime);
+        }
+
+        //执行分页查询
+        IPage<Product> result = productMapper.selectPage(page,wrapper);
+
+        //返回结果
+        return Result.success(result);
     }
 
 

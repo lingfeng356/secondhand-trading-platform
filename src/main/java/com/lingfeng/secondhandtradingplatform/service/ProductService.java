@@ -1,5 +1,6 @@
 package com.lingfeng.secondhandtradingplatform.service;
 
+import com.lingfeng.secondhandtradingplatform.DTO.ProductListRequestDTO;
 import com.lingfeng.secondhandtradingplatform.DTO.Result;
 import com.lingfeng.secondhandtradingplatform.pojo.Product;
 
@@ -17,4 +18,6 @@ public interface ProductService {
     Result republishProduct(String productId, String token);
 
     Result showMyList(String token,Integer pageNum,Integer pageSize);
+
+    Result showMyList(ProductListRequestDTO productListRequestDTO);
 }

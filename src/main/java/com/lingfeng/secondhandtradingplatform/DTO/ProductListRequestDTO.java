@@ -10,8 +10,10 @@ public class ProductListRequestDTO {
     private Integer pageNum;
     private Integer pageSize;
     private String category;
-    private Double price;
-    private String status;
+    private Double minPrice;
+    private Double maxPrice;
     private String sortBy;
     private String sortOrder;
+    private String city;
+    private String title;
 }

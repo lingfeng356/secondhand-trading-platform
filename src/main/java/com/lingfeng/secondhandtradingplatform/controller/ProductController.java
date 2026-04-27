@@ -1,6 +1,7 @@
 package com.lingfeng.secondhandtradingplatform.controller;
 
 
+import com.lingfeng.secondhandtradingplatform.DTO.ProductListRequestDTO;
 import com.lingfeng.secondhandtradingplatform.DTO.Result;
 import com.lingfeng.secondhandtradingplatform.pojo.Product;
 import com.lingfeng.secondhandtradingplatform.service.ProductService;
@@ -59,11 +60,10 @@ public class ProductController {
         return productService.showMyList(token,pageNum,pageSize);
     }
 
-    //根据搜索展示商品列表
-
-
-
-
-
+    //根据搜索展示商品列表,分页，排序，条件查询
+    @GetMapping("/product/list")
+    public Result showList(@RequestBody ProductListRequestDTO productListRequestDTO){
+        return productService.showMyList(productListRequestDTO);
+    }
 
 }
