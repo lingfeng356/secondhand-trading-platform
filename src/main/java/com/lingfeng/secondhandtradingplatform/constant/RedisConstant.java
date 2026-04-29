@@ -9,4 +9,7 @@ public class RedisConstant {
 
     public static final String PRODUCT_KEY = "product:";
     public static final long PRODUCT_TTL = 30L;
+
+    public static final String ORDER_KEY = "order:";
+    public static final long ORDER_TTL = 30L;
 }
