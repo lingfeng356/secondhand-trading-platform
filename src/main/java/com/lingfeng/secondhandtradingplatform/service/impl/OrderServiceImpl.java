@@ -34,6 +34,7 @@ import static com.lingfeng.secondhandtradingplatform.constant.RedisConstant.*;
 
 @Slf4j
 @Service
+@Transactional(rollbackFor = Exception.class)
 public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements OrderService {
 
     @Autowired
@@ -48,9 +49,11 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
 
+    @Autowired
+    private OrderMapper orderMapper;
+
     //创建订单 TODO:目前做的是买单个商品，待做一次购买多个商品
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public Result createOrder(String token, String productId) {
         //校验参数
         if(productId == null){
@@ -59,13 +62,18 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         }
         log.info("校验参数通过");
 
-        //查询商品是否存在
+
         Product product = productMapper.selectById(productId);
+        Long userId = UserUtils.getIdByToken(token);
+
+        //查询商品是否存在
         if(product == null){
             log.info("商品不存在");
             return Result.error("商品不存在");
         }
         log.info("商品存在");
+
+
 
         //校验商品状态
         Integer status = product.getStatus();
@@ -74,6 +82,11 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             return Result.error("商品未上架或已售出");
         }
         log.info("商品状态为：已上架");
+
+        if(userId == product.getUserId()){
+            return Result.error("不能购买自己的商品");
+        }
+
 
         //计算订单金额
         BigDecimal price = product.getPrice();
@@ -85,8 +98,6 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         log.info("订单编号为{}",orderNo);
 
         //保存订单到数据库
-        Long userId = UserUtils.getIdByToken(token);
-
         Order order = new Order();
         order.setUserId(userId);
         order.setSellerId(product.getUserId());
@@ -221,7 +232,6 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
     //支付订单
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public Result payOrder(String token, String orderId) {
         //检查订单是否存在
         Order order = getById(orderId);
@@ -269,7 +279,6 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
     //退款订单
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public Result refundOrder(String token, String orderId) {
         //检查订单是否存在
         Order order = getById(orderId);
@@ -328,7 +337,6 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
     //确认收货
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public Result receivedOrder(String token, String orderId) {
         //检查订单是否存在
         Order order = getById(orderId);
@@ -371,8 +379,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
     //卖家发货
     @Override
-    @Transactional(rollbackFor = Exception.class)
-    public Result shipdOrder(String token, String orderId) {
+    public Result shipOrder(String token, String orderId) {
         //检查订单是否存在
         Order order = getById(orderId);
         if (order == null) {
@@ -417,6 +424,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     public Result orderList(String token,Integer pageNum,Integer pageSize) {
         //获取userId
         Long userId = UserUtils.getIdByToken(token);
+
         //创建查询条件
         Page<Order> page = new Page<>(pageNum,pageSize);
         LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
@@ -434,5 +442,118 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         return Result.success(page);
     }
 
+    //我买到的商品列表
+    @Override
+    public Result myBoughtList(String token, Integer pageNum, Integer pageSize) {
+        //获取userId
+        Long userId = UserUtils.getIdByToken(token);
 
+        log.info("获取我买到的请求:userId={}",userId);
+
+        //分页查询买到的订单
+        Page<Order> page = new Page<>(pageNum,pageSize);
+        LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Order::getUserId,userId)
+                .orderByDesc(Order::getCreateTime);
+
+        //执行分页查询
+        page(page,wrapper);
+
+        //查询买到的订单商品
+        //TODO：可以优化成一次联表查询，效率提升十倍
+        for(Order order:page.getRecords()){
+            List<OrderItem> orderItems = orderItemMapper.selectList(
+                    new LambdaQueryWrapper<OrderItem>().eq(OrderItem::getOrderId,order.getOrderId())
+            );
+            order.setOrderItems(orderItems);
+        }
+
+        //返回信息
+        log.info("获取我买到的成功:userId={}",userId);
+        return Result.success(page);
+    }
+
+    //查询我卖出的商品
+    @Override
+    public Result mySoldList(String token, Integer pageNum, Integer pageSize) {
+        //获取userId
+        Long userId = UserUtils.getIdByToken(token);
+
+        log.info("获取我卖出的请求:userId={}",userId);
+
+        //数据库查询是否有该用户
+        User user = userMapper.selectById(userId);
+
+        //分页查询买到的订单
+        Page<Order> page = new Page<>(pageNum,pageSize);
+        LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Order::getSellerId,userId)
+                .orderByDesc(Order::getCreateTime);
+
+        //执行分页查询
+        page(page,wrapper);
+
+        //查询买到的订单商品
+        //TODO：可以优化成一次联表查询，效率提升十倍
+        for(Order order:page.getRecords()){
+            List<OrderItem> orderItems = orderItemMapper.selectList(
+                    new LambdaQueryWrapper<OrderItem>().eq(OrderItem::getOrderId,order.getOrderId())
+            );
+            order.setOrderItems(orderItems);
+        }
+
+        //返回信息
+        log.info("获取我卖出的成功:userId={}",userId);
+        return Result.success(page);
+    }
+
+
+    //TODO:改成双方的逻辑删除
+    //删除订单
+    @Override
+    public Result deleteOrder(String token, String orderId) {
+        //获取userId
+        Long userId = UserUtils.getIdByToken(token);
+
+        log.info("删除订单请求:userId={},orderId={}",userId,orderId);
+
+        //获取order
+        Order order = getById(orderId);
+        if(order == null){
+            log.warn("删除订单失败:订单不存在,userId={},orderId={}",userId,orderId);
+            return Result.error(404,"订单不存在");
+        }
+
+        // ✅ 判断是否是自己的订单（买家或卖家都可以删）
+        if (!order.getUserId().equals(userId) && !order.getSellerId().equals(userId)) {
+            log.warn("删除订单失败: 无权操作, userId={}, orderId={}", userId, orderId);
+            return Result.error(403, "只能删除自己的订单");
+        }
+
+        //获取订单物品list
+        List<OrderItem> orderItems = orderItemMapper.selectList(
+                new LambdaQueryWrapper<OrderItem>().eq(OrderItem::getOrderId,order.getOrderId())
+        );
+
+        //判断order是否取消或者完成或者已退款，如果符合，则删除，不符合，报错
+        Integer status = order.getStatus();
+        if(status != 4 && status != 5 && status != 6){
+            log.warn("删除订单失败:订单当前状态无法删除,userId={},orderId={}",userId,orderId);
+            return Result.error(400,"订单当前状态无法删除");
+        }
+
+        //删除数据库
+        orderMapper.deleteById(orderId);
+        for(OrderItem item:orderItems){
+            String itemId = item.getItemId();
+            orderItemMapper.deleteById(itemId);
+        }
+
+        //删除redis缓存
+        stringRedisTemplate.delete(ORDER_KEY + orderId);
+
+        //返回结果
+        log.info("删除订单成功:userId={},orderId={}",userId,orderId);
+        return Result.success();
+    }
 }

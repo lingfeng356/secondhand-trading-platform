@@ -386,5 +386,20 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         return Result.success(result);
     }
 
+    //根据热度推荐首页商品
+    @Override
+    public Result recommendProducts(Integer pageNum, Integer pageSize) {
+        Page<Product> page = new Page<>(pageNum,pageSize);
+        LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Product::getStatus,1)
+                .orderByDesc(Product::getViewCount)   // 浏览量
+                .orderByDesc(Product::getLikeCount)   // 点赞量
+                .orderByDesc(Product::getCreateTime); // 最新
+
+        page(page,wrapper);
+
+        return Result.success(page);
+    }
+
 
 }

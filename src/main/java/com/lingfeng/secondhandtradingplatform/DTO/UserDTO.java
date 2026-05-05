@@ -10,5 +10,5 @@ public class UserDTO {
 
     private String username;   // 昵称
 
-    private String img;
+    private String img;//用户头像
 }

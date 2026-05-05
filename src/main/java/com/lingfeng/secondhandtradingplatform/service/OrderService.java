@@ -2,7 +2,6 @@ package com.lingfeng.secondhandtradingplatform.service;
 
 
 import com.lingfeng.secondhandtradingplatform.DTO.Result;
-import com.lingfeng.secondhandtradingplatform.pojo.Product;
 
 public interface OrderService {
 
@@ -21,5 +20,11 @@ public interface OrderService {
 
     Result orderList(String token,Integer pageNum,Integer pageSize);
 
-    Result shipdOrder(String token, String orderId);
+    Result shipOrder(String token, String orderId);
+
+    Result myBoughtList(String token, Integer pageNum, Integer pageSize);
+
+    Result mySoldList(String token, Integer pageNum, Integer pageSize);
+
+    Result deleteOrder(String token, String orderId);
 }

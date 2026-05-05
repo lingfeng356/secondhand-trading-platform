@@ -1,6 +1,8 @@
 package com.lingfeng.secondhandtradingplatform.pojo;
 
+import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
 import jakarta.validation.constraints.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -12,6 +14,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 public class Product {
     //商品id
+    @TableId(type = IdType.AUTO)
     private Long id;
     //卖家id
     private Long userId;

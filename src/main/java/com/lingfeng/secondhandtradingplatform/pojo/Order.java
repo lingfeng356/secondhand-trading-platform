@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @TableName("t_order")
@@ -37,4 +38,7 @@ public class Order {
 
     @TableLogic
     private Integer isDeleted;
+
+    @TableField(exist = false)
+    private List<OrderItem> orderItems;
 }

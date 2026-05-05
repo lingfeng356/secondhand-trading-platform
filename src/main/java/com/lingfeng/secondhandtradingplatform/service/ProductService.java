@@ -20,4 +20,6 @@ public interface ProductService {
     Result showMyList(String token,Integer pageNum,Integer pageSize);
 
     Result showMyList(ProductListRequestDTO productListRequestDTO);
+
+    Result recommendProducts(Integer pageNum, Integer pageSize);
 }

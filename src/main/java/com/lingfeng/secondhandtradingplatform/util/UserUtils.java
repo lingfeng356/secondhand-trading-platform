@@ -28,8 +28,6 @@ public class UserUtils {
         return true;
     }
 
-
-
     //根据token获取用户id
     public static Long getIdByToken(String token){
         String tokenKey = LOGIN_TOKEN_KEY + token;
