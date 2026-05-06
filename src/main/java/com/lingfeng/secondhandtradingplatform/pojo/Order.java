@@ -2,11 +2,14 @@ package com.lingfeng.secondhandtradingplatform.pojo;
 
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
+import lombok.NoArgsConstructor;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
+@NoArgsConstructor
 @TableName("t_order")
 public class Order {
 
@@ -35,9 +38,6 @@ public class Order {
     private LocalDateTime createTime;
 
     private LocalDateTime updateTime;
-
-    @TableLogic
-    private Integer isDeleted;
 
     @TableField(exist = false)
     private List<OrderItem> orderItems;

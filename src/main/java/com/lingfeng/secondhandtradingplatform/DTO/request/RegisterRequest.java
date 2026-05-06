@@ -1,4 +1,4 @@
-package com.lingfeng.secondhandtradingplatform.DTO;
+package com.lingfeng.secondhandtradingplatform.DTO.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
@@ -26,7 +26,7 @@ public class RegisterRequest {
             message = "用户名只能包含中文、英文、数字，长度2-20位")
     private String username;
 
-    @Schema(description = "性别", example = "男")
+    @Schema(description = "性别", example = "1")
     private String sex;
 
     @NotBlank(message = "密码不能为空")

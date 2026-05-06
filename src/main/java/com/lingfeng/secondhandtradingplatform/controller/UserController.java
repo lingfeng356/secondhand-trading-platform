@@ -1,20 +1,19 @@
 package com.lingfeng.secondhandtradingplatform.controller;
 
 
-import com.lingfeng.secondhandtradingplatform.DTO.RegisterRequest;
-import com.lingfeng.secondhandtradingplatform.DTO.ResetPasswordRequest;
+import com.lingfeng.secondhandtradingplatform.DTO.request.RegisterRequest;
+import com.lingfeng.secondhandtradingplatform.DTO.request.ResetPasswordRequest;
 import com.lingfeng.secondhandtradingplatform.DTO.Result;
+import com.lingfeng.secondhandtradingplatform.DTO.request.UpdateUserRequest;
 import com.lingfeng.secondhandtradingplatform.pojo.User;
 import com.lingfeng.secondhandtradingplatform.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-@Slf4j
 @RestController
 @Tag(name = "用户模块")
 @RequestMapping("/user")
@@ -25,14 +24,20 @@ public class UserController {
 
     //查询用户信息
     @GetMapping("/getUser")
-    public Result getByToken(@RequestHeader("token") String token){
-        return userService.getByToken(token);
+    @Operation(summary = "获取用户信息")
+    @ApiResponses({
+            @ApiResponse(responseCode = "404",description = "用户不存在")
+    })
+    public Result getByUserId(@RequestParam(required = false) Long userId){
+        return userService.getByUserId(userId);
     }
 
     //编辑用户信息
     @PostMapping("/updateUser")
-    public Result updateByToken(@RequestHeader("token") String token,@RequestBody User user){
-        return userService.updateByToken(token,user);
+    @Operation(summary = "编辑用户信息")
+    @ApiResponse(responseCode = "404",description = "用户不存在")
+    public Result updateUser(@RequestBody UpdateUserRequest uur){
+        return userService.updateUser(uur);
     }
 
     //用户注册
@@ -50,8 +55,8 @@ public class UserController {
     @PostMapping("/logout")
     @Operation(summary = "用户退出登录")
     @ApiResponses(@ApiResponse(responseCode = "401",description = "未登录"))
-    public Result logout(@RequestHeader("token") String token){
-        return userService.logout(token);
+    public Result logout(){
+        return userService.logout();
     }
 
     //重置密码

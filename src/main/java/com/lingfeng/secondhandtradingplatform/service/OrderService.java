@@ -6,7 +6,7 @@ import com.lingfeng.secondhandtradingplatform.DTO.Result;
 public interface OrderService {
 
 
-    Result createOrder(String token, String product);
+    Result createOrder(String product);
 
     Result orderDetail(String token, String orderId);
 

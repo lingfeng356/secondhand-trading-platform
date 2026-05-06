@@ -15,6 +15,7 @@ import com.lingfeng.secondhandtradingplatform.pojo.OrderItem;
 import com.lingfeng.secondhandtradingplatform.pojo.Product;
 import com.lingfeng.secondhandtradingplatform.pojo.User;
 import com.lingfeng.secondhandtradingplatform.service.OrderService;
+import com.lingfeng.secondhandtradingplatform.util.UserContext;
 import com.lingfeng.secondhandtradingplatform.util.UserUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,48 +55,45 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
     //创建订单 TODO:目前做的是买单个商品，待做一次购买多个商品
     @Override
-    public Result createOrder(String token, String productId) {
-        //校验参数
-        if(productId == null){
-            log.info("校验参数不通过");
-            return Result.error("参数错误");
-        }
-        log.info("校验参数通过");
+    public Result createOrder(String productId) {
 
+        //获取userId
+        Long userId = UserContext.getUserId();
+
+        log.info("创建订单请求:userId={},productId={}",userId,productId);
+
+        //校验id是否合法
+        if(productId == null || productId.trim().isEmpty() || !productId.matches("\\d+")){
+            log.warn("创建订单失败:商品id无效,userId={},roductId={}",userId,productId);
+            return Result.error(404,"商品id无效");
+        }
 
         Product product = productMapper.selectById(productId);
-        Long userId = UserUtils.getIdByToken(token);
 
         //查询商品是否存在
         if(product == null){
-            log.info("商品不存在");
-            return Result.error("商品不存在");
+            log.warn("创建订单失败:商品不存在,userId={},productId={}",userId,productId);
+            return Result.error(404,"商品不存在");
         }
-        log.info("商品存在");
-
-
 
         //校验商品状态
         Integer status = product.getStatus();
         if(status != 1){
-            log.info("商品目前状态无法购买");
-            return Result.error("商品未上架或已售出");
-        }
-        log.info("商品状态为：已上架");
-
-        if(userId == product.getUserId()){
-            return Result.error("不能购买自己的商品");
+            log.info("创建订单失败:商品状态无效,userId={},productId={}",userId,productId);
+            return Result.error(400,"商品状态无效");
         }
 
+        if(userId.equals(product.getUserId())){
+            log.warn("创建订单失败:无权限,userId={},productId={}",userId,productId);
+            return Result.error(403,"无权限");
+        }
 
         //计算订单金额
         BigDecimal price = product.getPrice();
-        log.info("订单金额为{}",price);
 
         //生成订单编号(时间戳加随机数)
         String orderNo = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS"))
                 + RandomUtil.randomNumbers(4);
-        log.info("订单编号为{}",orderNo);
 
         //保存订单到数据库
         Order order = new Order();
@@ -106,7 +104,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         order.setTotalAmount(price);
         order.setStatus(1);
         save(order);
-        log.info("订单保存到数据库成功");
+
 
         //保存订单商品表
         OrderItem orderItem = new OrderItem();
@@ -118,20 +116,15 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         orderItem.setPrice(order.getPayAmount());
         orderItem.setQuantity(1);
         orderItemMapper.insert(orderItem);
-        log.info("订单商品保存到数据库成功");
 
         //更新商品状态
         product.setStatus(2);
         productMapper.updateById(product);
-        log.info("商品状态已更新");
 
         //返回信息
-        Map<String,Object> result = new HashMap<>();
-        result.put("orderId",order.getOrderId());
-        result.put("orderNo",order.getOrderNo());
-        result.put("payAmount",order.getPayAmount());
-
-        return Result.success(result);
+        String orderId = order.getOrderId();
+        log.info("创建订单成功:userId={},productId={},orderId={}",userId,productId,orderId);
+        return Result.success();
     }
 
     //查看订单详情

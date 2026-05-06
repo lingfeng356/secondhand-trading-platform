@@ -20,48 +20,56 @@ public class OrderController {
 
     //创建订单
     @PostMapping("/create/{productId}")
-    public Result createOrder(@RequestHeader("token") String token, @PathVariable String productId){
-        return orderService.createOrder(token,productId);
+    @Operation(summary = "创建订单")
+    public Result createOrder(@PathVariable String productId){
+        return orderService.createOrder(productId);
     }
 
     //订单详情
     @GetMapping("/detail/{orderId}")
+    @Operation(summary = "查询订单详情")
     public Result orderDetail(@RequestHeader("token") String token,@PathVariable String orderId){
         return orderService.orderDetail(token,orderId);
     }
 
     //取消订单
     @PostMapping("/cancel/{orderId}")
+    @Operation(summary = "取消订单")
     public Result cancelOrder(@RequestHeader("token") String token,@PathVariable String orderId){
         return orderService.cancelOrder(token,orderId);
     }
 
     //支付订单
     @PostMapping("/pay/{orderId}")
+    @Operation(summary = "支付订单")
     public Result payOrder(@RequestHeader("token") String token,@PathVariable String orderId){
         return orderService.payOrder(token,orderId);
     }
 
     //订单退款
     @PostMapping("/refund/{orderId}")
+    @Operation(summary = "订单退款")
     public Result refundOrder(@RequestHeader("token") String token,@PathVariable String orderId){
         return orderService.refundOrder(token,orderId);
     }
 
     //卖家发货
     @PostMapping("/ship/{orderId}")
+    @Operation(summary = "卖家发货")
     public Result shipOrder(@RequestHeader("token") String token,@PathVariable String orderId){
         return orderService.shipOrder(token,orderId);
     }
 
     //确认收货
     @PostMapping("/received/{orderId}")
+    @Operation(summary = "确认收货")
     public Result receivedOrder(@RequestHeader("token") String token,@PathVariable String orderId){
         return orderService.receivedOrder(token,orderId);
     }
 
     //订单列表
     @GetMapping("/myOrderList")
+    @Operation(summary = "查询我的订单列表")
     public Result orderList(@RequestHeader("token") String token,
                             @RequestParam(defaultValue = "1") Integer pageNum,
                             @RequestParam(defaultValue = "10") Integer pageSize){
@@ -70,7 +78,7 @@ public class OrderController {
 
     //查询买到的商品订单
     @GetMapping("/myBoughtList")
-    @Operation(summary = "用户查询买到的商品订单列表")
+    @Operation(summary = "查询我买到的订单")
     public Result myBoughtList(@RequestHeader("token") String token,
                                @RequestParam(defaultValue = "1") Integer pageNum,
                                @RequestParam(defaultValue = "10") Integer pageSize){
@@ -79,7 +87,7 @@ public class OrderController {
 
     //查询卖出的商品订单
     @GetMapping("/mySoldList")
-    @Operation(summary = "用户查询卖出的商品订单列表")
+    @Operation(summary = "查询我卖出的订单")
     public Result mySoldList(@RequestHeader("token") String token,
                                @RequestParam(defaultValue = "1") Integer pageNum,
                                @RequestParam(defaultValue = "10") Integer pageSize){
@@ -88,7 +96,7 @@ public class OrderController {
 
     //删除订单
     @PostMapping("/deleteOrder/{orderId}")
-    @Operation(summary = "用户删除指定订单")
+    @Operation(summary = "删除订单")
     @ApiResponses({
             @ApiResponse(responseCode = "404",description = "订单不存在"),
             @ApiResponse(responseCode = "400",description = "订单当前状态无法删除"),

@@ -1,4 +1,4 @@
-package com.lingfeng.secondhandtradingplatform.DTO;
+package com.lingfeng.secondhandtradingplatform.DTO.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
