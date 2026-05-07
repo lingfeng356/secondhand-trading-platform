@@ -16,7 +16,7 @@ public class UserDetailResponse {
     private String username;
 
     @Schema(description = "性别", example = "1")
-    private String sex;
+    private Integer sex;
 
     @Schema(description = "头像URL", example = "/img/avatar.png")
     private String img;

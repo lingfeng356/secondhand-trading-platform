@@ -14,7 +14,7 @@ public class User {
     @TableId(type = IdType.AUTO)
     private Long id;
     private String username;
-    private String sex;
+    private Integer sex;
     private String phone;
     private String password;
     private LocalDateTime createTime;

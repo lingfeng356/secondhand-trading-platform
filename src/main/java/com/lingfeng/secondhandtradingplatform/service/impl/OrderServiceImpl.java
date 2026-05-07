@@ -1,11 +1,13 @@
 package com.lingfeng.secondhandtradingplatform.service.impl;
 
-import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.RandomUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.lingfeng.secondhandtradingplatform.DTO.Result;
+import com.lingfeng.secondhandtradingplatform.DTO.request.PageRequest;
+import com.lingfeng.secondhandtradingplatform.DTO.response.OrderDetailResponse;
+import com.lingfeng.secondhandtradingplatform.converter.OrderConverter;
 import com.lingfeng.secondhandtradingplatform.mapper.OrderItemMapper;
 import com.lingfeng.secondhandtradingplatform.mapper.OrderMapper;
 import com.lingfeng.secondhandtradingplatform.mapper.ProductMapper;
@@ -16,12 +18,12 @@ import com.lingfeng.secondhandtradingplatform.pojo.Product;
 import com.lingfeng.secondhandtradingplatform.pojo.User;
 import com.lingfeng.secondhandtradingplatform.service.OrderService;
 import com.lingfeng.secondhandtradingplatform.util.UserContext;
-import com.lingfeng.secondhandtradingplatform.util.UserUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.util.List;
 
 import java.math.BigDecimal;
@@ -45,6 +47,9 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     private OrderItemMapper orderItemMapper;
 
     @Autowired
+    private OrderConverter orderConverter;
+
+    @Autowired
     private UserMapper userMapper;
 
     @Autowired
@@ -64,8 +69,8 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
         //校验id是否合法
         if(productId == null || productId.trim().isEmpty() || !productId.matches("\\d+")){
-            log.warn("创建订单失败:商品id无效,userId={},roductId={}",userId,productId);
-            return Result.error(404,"商品id无效");
+            log.warn("创建订单失败:商品id无效,userId={},productId={}",userId,productId);
+            return Result.error(400,"商品id无效");
         }
 
         Product product = productMapper.selectById(productId);
@@ -83,6 +88,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             return Result.error(400,"商品状态无效");
         }
 
+        //鉴权
         if(userId.equals(product.getUserId())){
             log.warn("创建订单失败:无权限,userId={},productId={}",userId,productId);
             return Result.error(403,"无权限");
@@ -104,7 +110,6 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         order.setTotalAmount(price);
         order.setStatus(1);
         save(order);
-
 
         //保存订单商品表
         OrderItem orderItem = new OrderItem();
@@ -129,79 +134,80 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
     //查看订单详情
     @Override
-    public Result orderDetail(String token, String orderId) {
+    public Result orderDetail(String orderId) {
+
+        Long userId = UserContext.getUserId();
+
+        log.info("查看订单请求:userId={},orderId={}",userId,orderId);
+
         //检查订单是否存在
         Order order = getById(orderId);
         if (order == null) {
-            log.info("订单不存在，orderId: {}", orderId);
-            return Result.error("订单不存在");
+            log.warn("查看订单失败:订单不存在,userId={},orderId={}",userId,orderId);
+            return Result.error(404,"订单不存在");
         }
 
         //校验订单是否为该用户的订单
-        Long userId = UserUtils.getIdByToken(token);
         Long rUserId = order.getUserId();
         Long rSellerId = order.getSellerId();
         if(!rUserId.equals(userId) && !rSellerId.equals(userId)){
-            log.info("订单用户与登录用户不一致");
-            return Result.error("只能查看自己的订单");
+            log.warn("查看订单失败:无权限,userId={},orderId={}",userId,orderId);
+            return Result.error(403,"无权限");
         }
 
         //查询订单商品信息
+        OrderDetailResponse response = orderConverter.toOrderDetailResponse(order);
         List<OrderItem> items = orderItemMapper.selectByOrderId(orderId);
+
+        //卖家判空
         User seller = userMapper.selectById(rSellerId);
-        Map<String,Object> result = new HashMap<>();
-        result.put("order",order);
-        result.put("items",items);
-        result.put("seller",seller);
-
-        //缓存到redis中
-        // 订单对象转 Map
-        String orderKey = ORDER_KEY + orderId;
-        Map<String, Object> tempMap = BeanUtil.beanToMap(order);
-        Map<String, String> orderMap = new HashMap<>();
-
-        for (Map.Entry<String, Object> entry : tempMap.entrySet()) {
-            if (entry.getValue() != null) {
-                orderMap.put(entry.getKey(), String.valueOf(entry.getValue()));
-            }
+        if(seller == null){
+            log.warn("查询订单失败:卖家不存在,userId={},orderId={}",userId,orderId);
+            return Result.error(404,"卖家不存在");
         }
 
-        stringRedisTemplate.opsForHash().putAll(orderKey,orderMap);
-        stringRedisTemplate.expire(orderKey,ORDER_TTL,TimeUnit.MINUTES);
+        //将订单和商品信息存入响应
+        response.setItems(items);
+        response.setSellerId(seller.getId());
+        response.setSellerImg(seller.getImg());
+        response.setSellerName(seller.getUsername());
 
         //返回信息
-        return Result.success(result);
+        log.info("查询订单成功:userId={},orderId={}",userId,orderId);
+        return Result.success(response);
     }
 
     //取消订单
     @Override
-    @Transactional(rollbackFor = Exception.class)
-    public Result cancelOrder(String token, String orderId) {
+    public Result cancelOrder(String orderId) {
+
+        Long userId = UserContext.getUserId();
+
+        log.info("取消订单请求:userId={},orderId={}",userId,orderId);
+
         //检查订单是否存在
         Order order = getById(orderId);
         if (order == null) {
-            log.info("订单不存在，orderId: {}", orderId);
-            return Result.error("订单不存在");
+            log.warn("取消订单失败:userId={},orderId={}",userId,orderId);
+            return Result.error(404,"订单不存在");
         }
 
         //校验订单状态是否能够合法操作
         Integer status = order.getStatus();
         if(status == 3 || status == 4 || status == 5 || status == 6){
-            log.info("当前订单状态无法取消");
-            return Result.error("当前订单状态无法取消");
+            log.warn("取消订单失败:当前订单状态无法取消,userId={},orderId={}",userId,orderId);
+            return Result.error(400,"当前订单状态无法取消");
         }
 
         //校验订单是否为该用户的订单
-        Long userId = UserUtils.getIdByToken(token);
         Long rUserId = order.getUserId();
         if(!rUserId.equals(userId)){
-            log.info("订单用户与登录用户不一致");
-            return Result.error("只能查看自己的订单");
+            log.warn("取消订单失败:无权限,userId={},orderId={}",userId,orderId);
+            return Result.error(403,"无权限");
         }
 
         //修改订单状态
         order.setStatus(5);
-        log.info("订单状态已改为已取消");
 
         //商品状态恢复
         List<OrderItem> orderItem = orderItemMapper.selectByOrderId(orderId);
@@ -217,35 +223,39 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
         //更新数据库
         updateById(order);
-        log.info("更新数据库成功");
 
         //返回结果
+        log.info("取消订单成功:userId={},orderId={}",userId,orderId);
         return Result.success();
     }
 
     //支付订单
     @Override
-    public Result payOrder(String token, String orderId) {
+    public Result payOrder(String orderId) {
+
+        Long userId = UserContext.getUserId();
+
+        log.info("支付订单请求:userId={},orderId={}",userId,orderId);
+
         //检查订单是否存在
         Order order = getById(orderId);
         if (order == null) {
-            log.info("订单不存在，orderId: {}", orderId);
-            return Result.error("订单不存在");
+            log.warn("支付订单失败:userId={},orderId={}",userId,orderId);
+            return Result.error(404,"订单不存在");
         }
 
         //校验订单状态是否能够合法操作
         Integer status = order.getStatus();
         if(status != 1){
-            log.info("当前订单状态无法支付");
-            return Result.error("当前订单状态无法支付");
+            log.warn("支付订单失败:当前订单状态无法支付,userId={},orderId={}",userId,orderId);
+            return Result.error(400,"当前订单状态无法支付");
         }
 
         //校验订单是否为该用户的订单
-        Long userId = UserUtils.getIdByToken(token);
         Long rUserId = order.getUserId();
         if(!rUserId.equals(userId)){
-            log.info("订单用户与登录用户不一致");
-            return Result.error("只能查看自己的订单");
+            log.warn("支付订单失败:无权限,userId={},orderId={}",userId,orderId);
+            return Result.error(403,"无权限");
         }
 
         //支付订单
@@ -255,49 +265,46 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
         //默认支付方式为微信支付
         order.setPayType(1);
-        log.info("已将订单状态更改成待发货");
 
         //更新数据库
         updateById(order);
-        log.info("更新数据库成功");
-
-        //删除redis缓存
-        stringRedisTemplate.delete(ORDER_KEY + orderId);
-        log.info("删除redis缓存成功");
 
         //返回成功信息
-        log.info("支付成功");
+        log.info("支付订单成功:userId={},orderId={}",userId,orderId);
         return Result.success();
     }
 
     //退款订单
     @Override
-    public Result refundOrder(String token, String orderId) {
+    public Result refundOrder(String orderId) {
+
+        Long userId = UserContext.getUserId();
+
+        log.info("退款订单请求:userId={},orderId={}",userId,orderId);
+
         //检查订单是否存在
         Order order = getById(orderId);
         if (order == null) {
-            log.info("订单不存在，orderId: {}", orderId);
-            return Result.error("订单不存在");
+            log.warn("退款订单失败:userId={},orderId={}", userId, orderId);
+            return Result.error(404, "订单不存在");
         }
 
         //校验订单状态是否能够合法操作
         Integer status = order.getStatus();
         if(status != 2 && status != 3){
-            log.info("当前订单状态无法退款");
-            return Result.error("当前订单状态无法退款");
+            log.warn("退款订单失败:当前订单状态无法退款,userId={},orderId={}",userId,orderId);
+            return Result.error(400,"当前订单状态无法退款");
         }
 
         //校验订单是否为该用户的订单
-        Long userId = UserUtils.getIdByToken(token);
         Long rUserId = order.getUserId();
         if(!rUserId.equals(userId)){
-            log.info("订单用户与登录用户不一致");
-            return Result.error("只能查看自己的订单");
+            log.warn("退款订单失败:无权限,userId={},orderId={}",userId,orderId);
+            return Result.error(403,"无权限");
         }
 
         //修改订单状态
         order.setStatus(6);
-        log.info("已成功修改订单状态");
 
         //商品状态恢复
         List<OrderItem> orderItem = orderItemMapper.selectByOrderId(orderId);
@@ -311,112 +318,104 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             stringRedisTemplate.delete(PRODUCT_KEY + productId);
         }
 
-
         //更新数据库
         updateById(order);
-        log.info("已成功更新数据库");
-
-        //删除redis缓存
-        stringRedisTemplate.delete(ORDER_KEY + orderId);
-        log.info("成功删除redis缓存");
-
-        //此处省略一百万行退款代码
-        log.info("退款成功");
 
         //返回成功信息
-        log.info("退款成功");
+        log.info("退款订单成功:userId={},orderId={}",userId,orderId);
         return Result.success();
     }
 
     //确认收货
     @Override
-    public Result receivedOrder(String token, String orderId) {
+    public Result receivedOrder(String orderId) {
+
+        Long userId = UserContext.getUserId();
+
+        log.info("确认收货请求:userId={},orderId={}",userId,orderId);
+
         //检查订单是否存在
         Order order = getById(orderId);
         if (order == null) {
-            log.info("订单不存在，orderId: {}", orderId);
-            return Result.error("订单不存在");
+            log.warn("确认收货失败:userId={},orderId={}", userId, orderId);
+            return Result.error(404, "订单不存在");
         }
 
         //校验订单状态是否能够合法操作
         Integer status = order.getStatus();
         if(status != 3){
-            log.info("当前订单状态无法确认收货");
-            return Result.error("当前订单状态无法确认收货");
+            log.warn("确认收货失败:当前订单状态无法收货,userId={},orderId={}",userId,orderId);
+            return Result.error(400,"当前订单状态无法收货");
         }
 
         //校验订单是否为该用户的订单
-        Long userId = UserUtils.getIdByToken(token);
         Long rUserId = order.getUserId();
         if(!rUserId.equals(userId)){
-            log.info("订单用户与登录用户不一致");
-            return Result.error("只能查看自己的订单");
+            log.warn("确认收货失败:无权限,userId={},orderId={}",userId,orderId);
+            return Result.error(403,"无权限");
         }
 
         //修改订单状态
         order.setStatus(4);
-        log.info("收货成功");
 
         //更新数据库
         updateById(order);
-        log.info("修改数据库成功");
-
-        //删除redis缓存
-        stringRedisTemplate.delete(ORDER_KEY + orderId);
-        log.info("删除redis缓存成功");
 
         //返回成功信息
-        log.info("收货成功");
+        log.info("确认收货成功:userId={},orderId={}",userId,orderId);
         return Result.success();
     }
 
     //卖家发货
     @Override
-    public Result shipOrder(String token, String orderId) {
+    public Result shipOrder(String orderId) {
+
+        Long userId = UserContext.getUserId();
+
+        log.info("卖家发货请求:userId={},orderId={}",userId,orderId);
+
         //检查订单是否存在
         Order order = getById(orderId);
         if (order == null) {
-            log.info("订单不存在，orderId: {}", orderId);
-            return Result.error("订单不存在");
+            log.warn("卖家发货失败:userId={},orderId={}", userId, orderId);
+            return Result.error(404, "订单不存在");
         }
 
         //校验订单状态是否能够合法操作
         Integer status = order.getStatus();
         if(status != 2){
-            log.info("当前订单状态无法发货");
-            return Result.error("当前订单状态无法确认发货");
+            log.warn("卖家发货失败:当前订单状态无法发货,userId={},orderId={}",userId,orderId);
+            return Result.error(400,"当前订单状态无法发货");
         }
 
         //校验订单是否为该用户的订单
-        Long userId = UserUtils.getIdByToken(token);
         Long rSellerId = order.getSellerId();
         if(!rSellerId.equals(userId)){
-            log.info("订单用户与登录用户不一致");
-            return Result.error("只能查看自己的订单");
+            log.warn("卖家发货失败:无权限,userId={},orderId={}",userId,orderId);
+            return Result.error(403,"无权限");
         }
 
         //修改订单状态
         order.setStatus(3);
-        log.info("发货成功");
 
         //更新数据库
         updateById(order);
-        log.info("修改数据库成功");
-
-        //删除redis缓存
-        stringRedisTemplate.delete(ORDER_KEY + orderId);
-        log.info("删除redis缓存成功");
 
         //返回成功信息
-        log.info("发货成功");
+        log.info("卖家发货成功:userId={},orderId={}",userId,orderId);
         return Result.success();
     }
 
     //订单列表展示
     @Override
-    public Result orderList(String token,Integer pageNum,Integer pageSize) {
+    public Result orderList(PageRequest pageRequest) {
         //获取userId
-        Long userId = UserUtils.getIdByToken(token);
+        Long userId = UserContext.getUserId();
+
+        log.info("我的订单查询请求:userId={}",userId);
+
+        Integer pageNum = pageRequest.getPageNum();
+        Integer pageSize = pageRequest.getPageSize();
 
         //创建查询条件
         Page<Order> page = new Page<>(pageNum,pageSize);
@@ -429,19 +428,30 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         //开始查询
         page(page,wrapper);
 
-        //返回page
-        log.info("成功查询订单列表");
+        //查询买到的订单商品
+        //TODO：可以优化成一次联表查询，效率提升十倍
+        for(Order order:page.getRecords()){
+            List<OrderItem> orderItems = orderItemMapper.selectList(
+                    new LambdaQueryWrapper<OrderItem>().eq(OrderItem::getOrderId,order.getOrderId())
+            );
+            order.setOrderItems(orderItems);
+        }
 
+        //返回page
+        log.info("我的订单查询成功:userId={}",userId);
         return Result.success(page);
     }
 
     //我买到的商品列表
     @Override
-    public Result myBoughtList(String token, Integer pageNum, Integer pageSize) {
+    public Result myBoughtList(PageRequest pageRequest) {
         //获取userId
-        Long userId = UserUtils.getIdByToken(token);
+        Long userId = UserContext.getUserId();
 
         log.info("获取我买到的请求:userId={}",userId);
+
+        Integer pageNum = pageRequest.getPageNum();
+        Integer pageSize = pageRequest.getPageSize();
 
         //分页查询买到的订单
         Page<Order> page = new Page<>(pageNum,pageSize);
@@ -468,11 +478,14 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
     //查询我卖出的商品
     @Override
-    public Result mySoldList(String token, Integer pageNum, Integer pageSize) {
+    public Result mySoldList(PageRequest pageRequest) {
         //获取userId
-        Long userId = UserUtils.getIdByToken(token);
+        Long userId = UserContext.getUserId();
 
-        log.info("获取我卖出的请求:userId={}",userId);
+        log.info("查询我卖出的请求:userId={}",userId);
+
+        Integer pageNum = pageRequest.getPageNum();
+        Integer pageSize = pageRequest.getPageSize();
 
         //数据库查询是否有该用户
         User user = userMapper.selectById(userId);
@@ -500,13 +513,12 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         return Result.success(page);
     }
 
-
     //TODO:改成双方的逻辑删除
     //删除订单
     @Override
-    public Result deleteOrder(String token, String orderId) {
+    public Result deleteOrder(String orderId) {
         //获取userId
-        Long userId = UserUtils.getIdByToken(token);
+        Long userId = UserContext.getUserId();
 
         log.info("删除订单请求:userId={},orderId={}",userId,orderId);
 
@@ -519,8 +531,8 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
         // ✅ 判断是否是自己的订单（买家或卖家都可以删）
         if (!order.getUserId().equals(userId) && !order.getSellerId().equals(userId)) {
-            log.warn("删除订单失败: 无权操作, userId={}, orderId={}", userId, orderId);
-            return Result.error(403, "只能删除自己的订单");
+            log.warn("删除订单失败: 无权限, userId={}, orderId={}", userId, orderId);
+            return Result.error(403, "无权限");
         }
 
         //获取订单物品list
@@ -541,9 +553,6 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             String itemId = item.getItemId();
             orderItemMapper.deleteById(itemId);
         }
-
-        //删除redis缓存
-        stringRedisTemplate.delete(ORDER_KEY + orderId);
 
         //返回结果
         log.info("删除订单成功:userId={},orderId={}",userId,orderId);

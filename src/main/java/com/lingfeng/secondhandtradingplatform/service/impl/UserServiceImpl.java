@@ -156,7 +156,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper,User> implements Use
         String phone = rr.getPhone();
         String code = rr.getCode();
         String username = rr.getUsername();
-        String sex = rr.getSex();
+        Integer sex = rr.getSex();
         String password = rr.getPassword();
         String img = rr.getImg();
         String codeKey = LOGIN_CODE_KEY + phone;

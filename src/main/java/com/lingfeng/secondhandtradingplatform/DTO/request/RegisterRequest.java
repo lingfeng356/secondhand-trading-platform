@@ -27,7 +27,7 @@ public class RegisterRequest {
     private String username;
 
     @Schema(description = "性别", example = "1")
-    private String sex;
+    private Integer sex;
 
     @NotBlank(message = "密码不能为空")
     @Size(min = 6, max = 20, message = "密码长度6-20位")

@@ -11,7 +11,7 @@ import java.util.List;
 @Data
 @NoArgsConstructor
 @Schema(description = "创建订单响应")
-public class CreateOrderResponse {
+public class OrderDetailResponse {
 
     // ========== 订单基本信息 ==========
 
@@ -36,7 +36,6 @@ public class CreateOrderResponse {
     private List<OrderItem> items;
 
     // ========== 卖家信息 ==========
-
     @Schema(description = "卖家ID", example = "10001")
     private Long sellerId;
 

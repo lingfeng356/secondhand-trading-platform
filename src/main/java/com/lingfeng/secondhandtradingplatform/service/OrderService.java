@@ -1,30 +1,32 @@
 package com.lingfeng.secondhandtradingplatform.service;
 
 
+import cn.hutool.db.Page;
 import com.lingfeng.secondhandtradingplatform.DTO.Result;
+import com.lingfeng.secondhandtradingplatform.DTO.request.PageRequest;
 
 public interface OrderService {
 
 
     Result createOrder(String product);
 
-    Result orderDetail(String token, String orderId);
+    Result orderDetail(String orderId);
 
-    Result cancelOrder(String token, String orderId);
+    Result cancelOrder(String orderId);
 
-    Result payOrder(String token, String orderId);
+    Result payOrder(String orderId);
 
-    Result refundOrder(String token, String orderId);
+    Result refundOrder(String orderId);
 
-    Result receivedOrder(String token, String orderId);
+    Result receivedOrder(String orderId);
 
-    Result orderList(String token,Integer pageNum,Integer pageSize);
+    Result orderList(PageRequest pageRequest);
 
-    Result shipOrder(String token, String orderId);
+    Result shipOrder(String orderId);
 
-    Result myBoughtList(String token, Integer pageNum, Integer pageSize);
+    Result myBoughtList(PageRequest pageRequest);
 
-    Result mySoldList(String token, Integer pageNum, Integer pageSize);
+    Result mySoldList(PageRequest pageRequest);
 
-    Result deleteOrder(String token, String orderId);
+    Result deleteOrder(String orderId);
 }
