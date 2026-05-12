@@ -1,7 +1,7 @@
 package com.lingfeng.secondhandtradingplatform.config;
 
-import com.lingfeng.secondhandtradingplatform.filter.LoginInterceptor;
-import com.lingfeng.secondhandtradingplatform.filter.RefreshInterceptor;
+import cn.dev33.satoken.interceptor.SaInterceptor;
+import cn.dev33.satoken.stp.StpUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
@@ -10,23 +10,10 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
-    //TODO: 配置拦截器并测试
-    @Autowired
-    private RefreshInterceptor refreshInterceptor;
-
-    @Autowired
-    private LoginInterceptor loginInterceptor;
-
-
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        // 1. 刷新拦截器（所有请求都刷新token有效期）
-        registry.addInterceptor(refreshInterceptor)
-                .addPathPatterns("/**")
-                .order(0);
-
         // 2. 登录拦截器
-        registry.addInterceptor(new LoginInterceptor())
+        registry.addInterceptor(new SaInterceptor(handle -> StpUtil.checkLogin()))
                 .addPathPatterns("/**")
                 .excludePathPatterns(
                         // ========== 用户模块（不需要登录）==========
@@ -62,8 +49,7 @@ public class WebConfig implements WebMvcConfigurer {
 
                         // ========== 错误页面 ==========
                         "/error"
-                )
-                .order(1);
+                );
 
     }
 }

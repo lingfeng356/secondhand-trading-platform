@@ -1,5 +1,6 @@
 package com.lingfeng.secondhandtradingplatform.service.impl;
 
+import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.lang.UUID;
 import cn.hutool.core.util.RandomUtil;
@@ -9,7 +10,6 @@ import com.lingfeng.secondhandtradingplatform.DTO.UserDTO;
 import com.lingfeng.secondhandtradingplatform.mapper.UserMapper;
 import com.lingfeng.secondhandtradingplatform.pojo.User;
 import com.lingfeng.secondhandtradingplatform.service.LoginService;
-import com.lingfeng.secondhandtradingplatform.util.UserUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -33,7 +33,7 @@ public class LoginServiceImpl extends ServiceImpl<UserMapper,User> implements Lo
 
     //验证码登录
     @Override
-    public Result loginByCode(String phone, String code) {
+    public Result<String> loginByCode(String phone, String code) {
 
         log.info("验证码登录请求:phone={}",phone);
 
@@ -58,8 +58,11 @@ public class LoginServiceImpl extends ServiceImpl<UserMapper,User> implements Lo
             return Result.error(404,"用户不存在");
         }
 
-        //随机生成一个token作为当前用户的登陆令牌
-        String token = UUID.randomUUID().toString(true);
+        Long userId = user.getId();
+
+        //使用satoken生成token进行登录
+        StpUtil.login(userId);
+        String token = StpUtil.getTokenValue();
 
         //将user对象转变为userDTO对象,防止私密信息泄露
         UserDTO userDTO = BeanUtil.copyProperties(user,UserDTO.class);
@@ -74,12 +77,11 @@ public class LoginServiceImpl extends ServiceImpl<UserMapper,User> implements Lo
                 userMap.put(entry.getKey(), String.valueOf(entry.getValue()));
             }
         }
-        //TODO:一个用户只能有一个token，现在问题是一个用户反复登录会导致多个token产生
-        String tokenKey = LOGIN_TOKEN_KEY + token;
-        stringRedisTemplate.opsForHash().putAll(tokenKey,userMap);
+        String userKey = LOGIN_USER_KEY + userId;
+        stringRedisTemplate.opsForHash().putAll(userKey,userMap);
 
         //设置时效性
-        stringRedisTemplate.expire(tokenKey,LOGIN_USER_TTL,TimeUnit.MINUTES);
+        stringRedisTemplate.expire(userKey,LOGIN_USER_TTL,TimeUnit.MINUTES);
 
         //将token返回前端和用户
         log.info("验证码登录成功:phone={}",phone);
@@ -88,7 +90,7 @@ public class LoginServiceImpl extends ServiceImpl<UserMapper,User> implements Lo
 
     //发送验证码
     @Override
-    public Result sendCode(String phone) {
+    public Result<String> sendCode(String phone) {
         //发送验证码
         log.info("发送验证码请求:phone={}",phone);
         String code = RandomUtil.randomNumbers(6);
@@ -104,7 +106,7 @@ public class LoginServiceImpl extends ServiceImpl<UserMapper,User> implements Lo
 
     //密码登录
     @Override
-    public Result loginByPassword(String phone, String password) {
+    public Result<String> loginByPassword(String phone, String password) {
 
         log.info("密码登录请求:phone={}",phone);
 
@@ -125,8 +127,11 @@ public class LoginServiceImpl extends ServiceImpl<UserMapper,User> implements Lo
             return Result.error(400,"密码错误");
         }
 
-        //随机生成一个token作为当前用户的登陆令牌
-        String token = UUID.randomUUID().toString(true);
+        Long userId = user.getId();
+
+        //使用satoken生成token进行登录
+        StpUtil.login(userId);
+        String token = StpUtil.getTokenValue();
 
         //将user对象转变为userDTO对象,防止私密信息泄露
         UserDTO userDTO = BeanUtil.copyProperties(user,UserDTO.class);
@@ -134,18 +139,18 @@ public class LoginServiceImpl extends ServiceImpl<UserMapper,User> implements Lo
         //将userDTO对象转换为hashmap保存到redis中
         Map<String,Object> tempMap = BeanUtil.beanToMap(userDTO);
         Map<String,String> userMap = new HashMap<>();
+
         //将其中的对象全都转化为String类型
         for (Map.Entry<String, Object> entry : tempMap.entrySet()) {
             if (entry.getValue() != null) {
                 userMap.put(entry.getKey(), String.valueOf(entry.getValue()));
             }
         }
-        //TODO:一个用户只能有一个token，现在问题是一个用户反复登录会导致多个token产生
-        String tokenKey = LOGIN_TOKEN_KEY + token;
-        stringRedisTemplate.opsForHash().putAll(tokenKey,userMap);
+        String userKey = LOGIN_USER_KEY + userId;
+        stringRedisTemplate.opsForHash().putAll(userKey,userMap);
 
         //设置时效性
-        stringRedisTemplate.expire(tokenKey,LOGIN_USER_TTL,TimeUnit.MINUTES);
+        stringRedisTemplate.expire(userKey,LOGIN_USER_TTL,TimeUnit.MINUTES);
 
         //将token返回前端和用户
         log.info("密码登录成功:phone={}",phone);

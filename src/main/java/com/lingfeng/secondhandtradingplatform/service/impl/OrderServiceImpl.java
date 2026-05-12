@@ -2,9 +2,11 @@ package com.lingfeng.secondhandtradingplatform.service.impl;
 
 import cn.hutool.core.util.RandomUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.lingfeng.secondhandtradingplatform.DTO.Result;
+import com.lingfeng.secondhandtradingplatform.DTO.request.GetMyListByStatusRequest;
 import com.lingfeng.secondhandtradingplatform.DTO.request.PageRequest;
 import com.lingfeng.secondhandtradingplatform.DTO.response.OrderDetailResponse;
 import com.lingfeng.secondhandtradingplatform.converter.OrderConverter;
@@ -17,7 +19,6 @@ import com.lingfeng.secondhandtradingplatform.pojo.OrderItem;
 import com.lingfeng.secondhandtradingplatform.pojo.Product;
 import com.lingfeng.secondhandtradingplatform.pojo.User;
 import com.lingfeng.secondhandtradingplatform.service.OrderService;
-import com.lingfeng.secondhandtradingplatform.util.UserContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -29,9 +30,6 @@ import java.util.List;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import static com.lingfeng.secondhandtradingplatform.constant.RedisConstant.*;
 
@@ -60,15 +58,12 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
     //创建订单 TODO:目前做的是买单个商品，待做一次购买多个商品
     @Override
-    public Result createOrder(String productId) {
-
-        //获取userId
-        Long userId = UserContext.getUserId();
+    public Result<Void> createOrder(Long userId, Long productId) {
 
         log.info("创建订单请求:userId={},productId={}",userId,productId);
 
         //校验id是否合法
-        if(productId == null || productId.trim().isEmpty() || !productId.matches("\\d+")){
+        if(productId == null || productId <= 0){
             log.warn("创建订单失败:商品id无效,userId={},productId={}",userId,productId);
             return Result.error(400,"商品id无效");
         }
@@ -125,6 +120,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         //更新商品状态
         product.setStatus(2);
         productMapper.updateById(product);
+        stringRedisTemplate.delete(PRODUCT_KEY + productId);
 
         //返回信息
         String orderId = order.getOrderId();
@@ -134,9 +130,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
     //查看订单详情
     @Override
-    public Result orderDetail(String orderId) {
-
-        Long userId = UserContext.getUserId();
+    public Result<OrderDetailResponse> orderDetail(Long userId, String orderId) {
 
         log.info("查看订单请求:userId={},orderId={}",userId,orderId);
 
@@ -179,9 +173,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
     //取消订单
     @Override
-    public Result cancelOrder(String orderId) {
-
-        Long userId = UserContext.getUserId();
+    public Result<Void> cancelOrder(Long userId, String orderId) {
 
         log.info("取消订单请求:userId={},orderId={}",userId,orderId);
 
@@ -212,7 +204,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         //商品状态恢复
         List<OrderItem> orderItem = orderItemMapper.selectByOrderId(orderId);
         for(OrderItem oi:orderItem){
-            String productId = oi.getProductId();
+            Long productId = oi.getProductId();
             Product product = productMapper.selectById(productId);
             product.setStatus(1);
             //更新数据库
@@ -231,9 +223,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
     //支付订单
     @Override
-    public Result payOrder(String orderId) {
-
-        Long userId = UserContext.getUserId();
+    public Result<Void> payOrder(Long userId, String orderId) {
 
         log.info("支付订单请求:userId={},orderId={}",userId,orderId);
 
@@ -276,9 +266,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
     //退款订单
     @Override
-    public Result refundOrder(String orderId) {
-
-        Long userId = UserContext.getUserId();
+    public Result<Void> refundOrder(Long userId, String orderId) {
 
         log.info("退款订单请求:userId={},orderId={}",userId,orderId);
 
@@ -309,7 +297,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         //商品状态恢复
         List<OrderItem> orderItem = orderItemMapper.selectByOrderId(orderId);
         for(OrderItem oi:orderItem){
-            String productId = oi.getProductId();
+            Long productId = oi.getProductId();
             Product product = productMapper.selectById(productId);
             product.setStatus(1);
             //更新数据库
@@ -328,9 +316,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
     //确认收货
     @Override
-    public Result receivedOrder(String orderId) {
-
-        Long userId = UserContext.getUserId();
+    public Result<Void> receivedOrder(Long userId, String orderId) {
 
         log.info("确认收货请求:userId={},orderId={}",userId,orderId);
 
@@ -368,9 +354,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
     //卖家发货
     @Override
-    public Result shipOrder(String orderId) {
-
-        Long userId = UserContext.getUserId();
+    public Result<Void> shipOrder(Long userId, String orderId) {
 
         log.info("卖家发货请求:userId={},orderId={}",userId,orderId);
 
@@ -408,9 +392,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
     //订单列表展示
     @Override
-    public Result orderList(PageRequest pageRequest) {
-        //获取userId
-        Long userId = UserContext.getUserId();
+    public Result<IPage<Order>> orderList(Long userId, PageRequest pageRequest) {
 
         log.info("我的订单查询请求:userId={}",userId);
 
@@ -442,11 +424,9 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         return Result.success(page);
     }
 
-    //我买到的商品列表
+    //我买到的商品全部列表
     @Override
-    public Result myBoughtList(PageRequest pageRequest) {
-        //获取userId
-        Long userId = UserContext.getUserId();
+    public Result<IPage<Order>> myBoughtList(Long userId, PageRequest pageRequest) {
 
         log.info("获取我买到的请求:userId={}",userId);
 
@@ -478,17 +458,12 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
     //查询我卖出的商品
     @Override
-    public Result mySoldList(PageRequest pageRequest) {
-        //获取userId
-        Long userId = UserContext.getUserId();
+    public Result<IPage<Order>> mySoldList(Long userId, PageRequest pageRequest) {
 
         log.info("查询我卖出的请求:userId={}",userId);
 
         Integer pageNum = pageRequest.getPageNum();
         Integer pageSize = pageRequest.getPageSize();
-
-        //数据库查询是否有该用户
-        User user = userMapper.selectById(userId);
 
         //分页查询买到的订单
         Page<Order> page = new Page<>(pageNum,pageSize);
@@ -516,9 +491,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     //TODO:改成双方的逻辑删除
     //删除订单
     @Override
-    public Result deleteOrder(String orderId) {
-        //获取userId
-        Long userId = UserContext.getUserId();
+    public Result<Void> deleteOrder(Long userId, String orderId) {
 
         log.info("删除订单请求:userId={},orderId={}",userId,orderId);
 
@@ -557,5 +530,71 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         //返回结果
         log.info("删除订单成功:userId={},orderId={}",userId,orderId);
         return Result.success();
+    }
+
+    //筛选状态获取我买到的订单
+    @Override
+    public Result<IPage<Order>> myBoughtListByStatus(Long userId, GetMyListByStatusRequest request) {
+
+        log.info("状态筛选查询我买到的请求:userId={}",userId);
+
+        Integer pageNum = request.getPageNum();
+        Integer pageSize = request.getPageSize();
+        Integer status = request.getStatus();
+
+        //分页状态查询订单
+        Page<Order> page = new Page<>(pageNum,pageSize);
+        LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Order::getUserId,userId)
+                .eq(Order::getStatus,status)
+                .orderByDesc(Order::getCreateTime);
+
+        //执行分页查询
+        page(page,wrapper);
+
+        //查询买到的订单商品
+        //TODO：可以优化成一次联表查询，效率提升十倍
+        for(Order order:page.getRecords()){
+            List<OrderItem> orderItems = orderItemMapper.selectList(
+                    new LambdaQueryWrapper<OrderItem>().eq(OrderItem::getOrderId,order.getOrderId())
+            );
+            order.setOrderItems(orderItems);
+        }
+
+        log.info("状态筛选查询我买到的成功:userId={}",userId);
+        return Result.success(page);
+    }
+
+    //状态筛选我卖出的订单
+    @Override
+    public Result<IPage<Order>> mySoldListByStatus(Long userId, GetMyListByStatusRequest request) {
+
+        log.info("状态筛选查询我卖出的请求:userId={}",userId);
+
+        Integer pageNum = request.getPageNum();
+        Integer pageSize = request.getPageSize();
+        Integer status = request.getStatus();
+
+        //分页状态查询订单
+        Page<Order> page = new Page<>(pageNum,pageSize);
+        LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Order::getSellerId,userId)
+                .eq(Order::getStatus,status)
+                .orderByDesc(Order::getCreateTime);
+
+        //执行分页查询
+        page(page,wrapper);
+
+        //查询买到的订单商品
+        //TODO：可以优化成一次联表查询，效率提升十倍
+        for(Order order:page.getRecords()){
+            List<OrderItem> orderItems = orderItemMapper.selectList(
+                    new LambdaQueryWrapper<OrderItem>().eq(OrderItem::getOrderId,order.getOrderId())
+            );
+            order.setOrderItems(orderItems);
+        }
+
+        log.info("状态筛选查询我卖出的成功:userId={}",userId);
+        return Result.success(page);
     }
 }

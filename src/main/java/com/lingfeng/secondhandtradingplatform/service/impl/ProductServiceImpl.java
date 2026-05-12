@@ -18,8 +18,6 @@ import com.lingfeng.secondhandtradingplatform.mapper.UserMapper;
 import com.lingfeng.secondhandtradingplatform.pojo.Product;
 import com.lingfeng.secondhandtradingplatform.pojo.User;
 import com.lingfeng.secondhandtradingplatform.service.ProductService;
-import com.lingfeng.secondhandtradingplatform.util.UserContext;
-import com.lingfeng.secondhandtradingplatform.util.UserUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -44,9 +42,6 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
     private ProductMapper productMapper;
 
     @Autowired
-    private UserUtils userUtils;
-
-    @Autowired
     private UserMapper userMapper;
 
     @Autowired
@@ -54,9 +49,8 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
 
     //发布商品
     @Override
-    public Result publishProduct(ProductPublishRequest ppr) {
-        //获取userId
-        Long userId = UserContext.getUserId();
+    public Result<Void> publishProduct(Long userId, ProductPublishRequest ppr) {
+
         log.info("发布商品请求:userId={}",userId);
 
         //将DTO转换成entity
@@ -90,12 +84,12 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
     //TODO:缓存击穿和缓存穿透，重复代码
     //查看商品详情
     @Override
-    public Result productDetail(String productId) {
+    public Result<ProductDetailResponse> productDetail(Long productId) {
 
         log.info("查询商品请求:productId={}",productId);
 
         //校验id
-        if(productId == null || productId.trim().isEmpty()){
+        if(productId == null || productId <= 0){
             log.warn("查询商品失败:商品不存在,productId={}",productId);
             return Result.error(404,"商品不存在");
         }
@@ -192,18 +186,16 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
 
     //编辑商品信息
     @Override
-    public Result productUpdate(UpdateProductDetailRequest updr, String productId) {
+    public Result<Void> productUpdate(Long userId, UpdateProductDetailRequest updr, Long productId) {
 
-        log.info("编辑商品请求:productId={}",productId);
+        log.info("编辑商品请求:userId={},productId={}",userId,productId);
 
         //校验id是否合法
-        if(productId == null || productId.trim().isEmpty() || !productId.matches("\\d+")){
+        if(productId == null || productId <= 0){
             log.warn("编辑商品失败:商品id无效,productId={}",productId);
             return Result.error(404,"商品id无效");
         }
 
-        //获取userId
-        Long userId = UserContext.getUserId();
         Product product = getById(productId);
 
         //判断product是否存在
@@ -221,7 +213,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         //更新数据库
         //因为前端传来的product没有id，需要手动传参，到数据库后会自动更改非null的数据
         Product pct = productConverter.toEntity(updr);
-        pct.setId(Long.parseLong(productId));
+        pct.setId(productId);
         updateById(pct);
 
         //删除redis缓存
@@ -234,18 +226,17 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
 
     //下架商品
     @Override
-    public Result removeProduct(String productId) {
+    public Result<Void> removeProduct(Long userId, Long productId) {
 
-        log.info("下架商品请求:productId={}",productId);
+        log.info("下架商品请求:userId={},productId={}",userId,productId);
 
         //校验id是否合法
-        if(productId == null || productId.trim().isEmpty() || !productId.matches("\\d+")){
+        if(productId == null || productId <= 0){
             log.warn("下架商品失败:商品id无效,productId={}",productId);
             return Result.error(400,"商品id无效");
         }
 
         //获取userId
-        Long userId = UserContext.getUserId();
         Product product = getById(productId);
 
         //判断product是否存在
@@ -283,18 +274,17 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
 
     //删除商品
     @Override
-    public Result deleteProduct(String productId) {
+    public Result<Void> deleteProduct(Long userId, Long productId) {
 
-        log.info("删除商品请求:productId={}",productId);
+        log.info("删除商品请求:userId={},productId={}",userId,productId);
 
         //校验id是否合法
-        if(productId == null || productId.trim().isEmpty() || !productId.matches("\\d+")){
+        if(productId == null || productId <= 0){
             log.warn("删除商品失败:商品id无效,productId={}",productId);
             return Result.error(400,"商品id无效");
         }
 
         //获取userId
-        Long userId = UserContext.getUserId();
         Product product = getById(productId);
 
         //判断product是否存在
@@ -323,18 +313,17 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
 
     //将已下架的商品重新上架
     @Override
-    public Result republishProduct(String productId) {
+    public Result<Void> republishProduct(Long userId, Long productId) {
 
-        log.info("重新上架商品请求:productId={}",productId);
+        log.info("重新上架商品请求:userId={},productId={}",userId,productId);
 
         //校验id是否合法
-        if(productId == null || productId.trim().isEmpty() || !productId.matches("\\d+")){
+        if(productId == null || productId <= 0){
             log.warn("重新上架商品失败:商品id无效,productId={}",productId);
             return Result.error(400,"商品id无效");
         }
 
         //获取userId
-        Long userId = UserContext.getUserId();
         Product product = getById(productId);
 
         //判断product是否存在
@@ -372,15 +361,12 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
 
     //我的发布商品
     @Override
-    public Result showMyList(PageRequest pageRequest) {
+    public Result<IPage<Product>> showMyList(Long userId,PageRequest pageRequest) {
+
+        log.info("查询我的发布请求:userId={}",userId);
 
         Integer pageNum = pageRequest.getPageNum();
         Integer pageSize = pageRequest.getPageSize();
-
-        //获取userId
-        Long userId = UserContext.getUserId();
-
-        log.info("查询我的发布请求:userId={}",userId);
 
         // 直接分页查询
         Page<Product> page = new Page<>(pageNum, pageSize);
@@ -395,7 +381,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
 
     //查询商品列表
     @Override
-    public Result showMyList(ProductListRequest productListRequest) {
+    public Result<IPage<Product>> showProductList(ProductListRequest productListRequest) {
 
         log.info("查询商品列表请求");
 
@@ -456,7 +442,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         }
 
         //执行分页查询
-        IPage<Product> result = productMapper.selectPage(page,wrapper);
+        Page<Product> result = productMapper.selectPage(page,wrapper);
 
         //返回结果
         log.info("查询商品列表成功");
@@ -466,7 +452,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
     //根据热度推荐首页商品
     //TODO：添加缓存降低DB压力
     @Override
-    public Result recommendProducts(PageRequest pageRequest) {
+    public Result<IPage<Product>> recommendProducts(PageRequest pageRequest) {
 
         log.info("推荐首页商品请求");
 

@@ -1,27 +1,31 @@
 package com.lingfeng.secondhandtradingplatform.service;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lingfeng.secondhandtradingplatform.DTO.request.ProductListRequest;
 import com.lingfeng.secondhandtradingplatform.DTO.request.PageRequest;
 import com.lingfeng.secondhandtradingplatform.DTO.request.ProductPublishRequest;
 import com.lingfeng.secondhandtradingplatform.DTO.Result;
 import com.lingfeng.secondhandtradingplatform.DTO.request.UpdateProductDetailRequest;
+import com.lingfeng.secondhandtradingplatform.DTO.response.ProductDetailResponse;
+import com.lingfeng.secondhandtradingplatform.pojo.Product;
 
 public interface ProductService {
-    Result publishProduct(ProductPublishRequest ppr);
+    Result<Void> publishProduct(Long userId, ProductPublishRequest ppr);
 
-    Result productDetail(String productId);
+    Result<ProductDetailResponse> productDetail(Long productId);
 
-    Result productUpdate(UpdateProductDetailRequest updr, String productId);
+    Result<Void> productUpdate(Long userId, UpdateProductDetailRequest updr, Long productId);
 
-    Result removeProduct(String productId);
+    Result<Void> removeProduct(Long userId, Long productId);
 
-    Result deleteProduct(String productId);
+    Result<Void> deleteProduct(Long userId, Long productId);
 
-    Result republishProduct(String productId);
+    Result<Void> republishProduct(Long userId, Long productId);
 
-    Result showMyList(PageRequest pageRequest);
+    Result<IPage<Product>> showMyList(Long userId, PageRequest pageRequest);
 
-    Result showMyList(ProductListRequest productListRequestDTO);
+    Result<IPage<Product>> showProductList(ProductListRequest productListRequestDTO);
 
-    Result recommendProducts(PageRequest pageRequest);
+    Result<IPage<Product>> recommendProducts(PageRequest pageRequest);
 }

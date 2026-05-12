@@ -11,11 +11,13 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 @RestController//要用@RestController才会返回json格式，否则只会跳转页面
 @Tag(name = "登录模块")
 @RequestMapping("/user")
+@Validated  // 加在类上，类中所有方法参数都会自动校验
 public class LoginController {
 
     @Autowired
@@ -28,7 +30,7 @@ public class LoginController {
             @ApiResponse(responseCode = "400",description = "验证码无效"),
             @ApiResponse(responseCode = "404",description = "用户不存在")
     })
-    public Result loginByCode(@RequestBody LoginByCodeRequest lbcr){
+    public Result<String> loginByCode(@RequestBody LoginByCodeRequest lbcr){
         String phone = lbcr.getPhone();
         String code = lbcr.getCode();
         return loginService.loginByCode(phone,code);
@@ -37,7 +39,7 @@ public class LoginController {
     //发送验证码
     @PostMapping("/sendCode")
     @Operation(summary = "发送验证码")
-    public Result sendCode(@RequestBody SendCodeRequest scr){
+    public Result<String> sendCode(@RequestBody SendCodeRequest scr){
         String phone = scr.getPhone();
         return loginService.sendCode(phone);
     }
@@ -49,7 +51,7 @@ public class LoginController {
             @ApiResponse(responseCode = "404",description = "用户不存在"),
             @ApiResponse(responseCode = "400",description = "密码错误")
     })
-    public Result loginByPassword(@RequestBody LoginByPasswordRequest lbpr){
+    public Result<String> loginByPassword(@RequestBody LoginByPasswordRequest lbpr){
         String phone = lbpr.getPhone();
         String password = lbpr.getPassword();
         return loginService.loginByPassword(phone,password);

@@ -1,19 +1,27 @@
 package com.lingfeng.secondhandtradingplatform.controller;
 
+import cn.dev33.satoken.stp.StpUtil;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.lingfeng.secondhandtradingplatform.DTO.Result;
+import com.lingfeng.secondhandtradingplatform.DTO.request.GetMyListByStatusRequest;
 import com.lingfeng.secondhandtradingplatform.DTO.request.PageRequest;
+import com.lingfeng.secondhandtradingplatform.DTO.response.OrderDetailResponse;
+import com.lingfeng.secondhandtradingplatform.pojo.Order;
 import com.lingfeng.secondhandtradingplatform.service.OrderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameters;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/order")
 @Tag(name = "订单模块")
+@Validated  // 加在类上，类中所有方法参数都会自动校验
 public class OrderController {
 
     @Autowired
@@ -27,8 +35,9 @@ public class OrderController {
             @ApiResponse(responseCode = "403",description = "无权限"),
             @ApiResponse(responseCode = "404",description = "商品不存在")
     })
-    public Result createOrder(@PathVariable String productId){
-        return orderService.createOrder(productId);
+    public Result<Void> createOrder(@PathVariable Long productId){
+        Long userId = StpUtil.getLoginIdAsLong();
+        return orderService.createOrder(userId,productId);
     }
 
     //订单详情
@@ -38,8 +47,9 @@ public class OrderController {
             @ApiResponse(responseCode = "403",description = "无权限"),
             @ApiResponse(responseCode = "404",description = "卖家不存在")
     })
-    public Result orderDetail(@PathVariable String orderId){
-        return orderService.orderDetail(orderId);
+    public Result<OrderDetailResponse> orderDetail(@PathVariable String orderId){
+        Long userId = StpUtil.getLoginIdAsLong();
+        return orderService.orderDetail(userId,orderId);
     }
 
     //取消订单
@@ -50,8 +60,9 @@ public class OrderController {
             @ApiResponse(responseCode = "403",description = "无权限"),
             @ApiResponse(responseCode = "404",description = "商品不存在")
     })
-    public Result cancelOrder(@PathVariable String orderId){
-        return orderService.cancelOrder(orderId);
+    public Result<Void> cancelOrder(@PathVariable String orderId){
+        Long userId = StpUtil.getLoginIdAsLong();
+        return orderService.cancelOrder(userId,orderId);
     }
 
     //支付订单
@@ -62,8 +73,9 @@ public class OrderController {
             @ApiResponse(responseCode = "403",description = "无权限"),
             @ApiResponse(responseCode = "404",description = "商品不存在")
     })
-    public Result payOrder(@PathVariable String orderId){
-        return orderService.payOrder(orderId);
+    public Result<Void> payOrder(@PathVariable String orderId){
+        Long userId = StpUtil.getLoginIdAsLong();
+        return orderService.payOrder(userId,orderId);
     }
 
     //订单退款
@@ -74,8 +86,9 @@ public class OrderController {
             @ApiResponse(responseCode = "403",description = "无权限"),
             @ApiResponse(responseCode = "404",description = "商品不存在")
     })
-    public Result refundOrder(@PathVariable String orderId){
-        return orderService.refundOrder(orderId);
+    public Result<Void> refundOrder(@PathVariable String orderId){
+        Long userId = StpUtil.getLoginIdAsLong();
+        return orderService.refundOrder(userId,orderId);
     }
 
     //卖家发货
@@ -86,8 +99,9 @@ public class OrderController {
             @ApiResponse(responseCode = "403",description = "无权限"),
             @ApiResponse(responseCode = "404",description = "商品不存在")
     })
-    public Result shipOrder(@PathVariable String orderId){
-        return orderService.shipOrder(orderId);
+    public Result<Void> shipOrder(@PathVariable String orderId){
+        Long userId = StpUtil.getLoginIdAsLong();
+        return orderService.shipOrder(userId,orderId);
     }
 
     //确认收货
@@ -98,29 +112,33 @@ public class OrderController {
             @ApiResponse(responseCode = "403",description = "无权限"),
             @ApiResponse(responseCode = "404",description = "商品不存在")
     })
-    public Result receivedOrder(@PathVariable String orderId){
-        return orderService.receivedOrder(orderId);
+    public Result<Void> receivedOrder(@PathVariable String orderId){
+        Long userId = StpUtil.getLoginIdAsLong();
+        return orderService.receivedOrder(userId,orderId);
     }
 
     //订单列表
     @PostMapping("/myOrderList")
     @Operation(summary = "查询我的订单列表")
-    public Result orderList(@RequestBody PageRequest pageRequest){
-        return orderService.orderList(pageRequest);
+    public Result<IPage<Order>> orderList(@RequestBody PageRequest pageRequest){
+        Long userId = StpUtil.getLoginIdAsLong();
+        return orderService.orderList(userId,pageRequest);
     }
 
     //查询买到的商品订单
     @PostMapping("/myBoughtList")
     @Operation(summary = "查询我买到的订单")
-    public Result myBoughtList(@RequestBody PageRequest pageRequest){
-        return orderService.myBoughtList(pageRequest);
+    public Result<IPage<Order>> myBoughtList(@RequestBody PageRequest pageRequest){
+        Long userId = StpUtil.getLoginIdAsLong();
+        return orderService.myBoughtList(userId,pageRequest);
     }
 
     //查询卖出的商品订单
     @PostMapping("/mySoldList")
     @Operation(summary = "查询我卖出的订单")
-    public Result mySoldList(@RequestBody PageRequest pageRequest){
-        return orderService.mySoldList(pageRequest);
+    public Result<IPage<Order>> mySoldList(@RequestBody PageRequest pageRequest){
+        Long userId = StpUtil.getLoginIdAsLong();
+        return orderService.mySoldList(userId,pageRequest);
     }
 
     //删除订单
@@ -131,7 +149,24 @@ public class OrderController {
             @ApiResponse(responseCode = "400",description = "订单当前状态无法删除"),
             @ApiResponse(responseCode = "403",description = "只能删除自己的订单")
     })
-    public Result deleteOrder(@PathVariable String orderId){
-        return orderService.deleteOrder(orderId);
+    public Result<Void> deleteOrder(@PathVariable String orderId){
+        Long userId = StpUtil.getLoginIdAsLong();
+        return orderService.deleteOrder(userId,orderId);
+    }
+
+    //我买到的状态筛选
+    @PostMapping("/myBoughtListByStatus")
+    @Operation(summary = "查询我买到的订单")
+    public Result<IPage<Order>> myBoughtListByStatus(@RequestBody GetMyListByStatusRequest request){
+        Long userId = StpUtil.getLoginIdAsLong();
+        return orderService.myBoughtListByStatus(userId,request);
+    }
+
+    //我卖出的状态筛选
+    @PostMapping("/mySoldListByStatus")
+    @Operation(summary = "查询我卖出的订单")
+    public Result<IPage<Order>> mySoldListByStatus(@RequestBody GetMyListByStatusRequest request){
+        Long userId = StpUtil.getLoginIdAsLong();
+        return orderService.mySoldListByStatus(userId,request);
     }
 }

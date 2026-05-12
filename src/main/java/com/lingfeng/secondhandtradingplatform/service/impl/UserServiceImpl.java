@@ -1,6 +1,7 @@
 package com.lingfeng.secondhandtradingplatform.service.impl;
 
 
+import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.lingfeng.secondhandtradingplatform.DTO.request.RegisterRequest;
 import com.lingfeng.secondhandtradingplatform.DTO.request.ResetPasswordRequest;
@@ -11,7 +12,6 @@ import com.lingfeng.secondhandtradingplatform.converter.UserConverter;
 import com.lingfeng.secondhandtradingplatform.mapper.UserMapper;
 import com.lingfeng.secondhandtradingplatform.pojo.User;
 import com.lingfeng.secondhandtradingplatform.service.UserService;
-import com.lingfeng.secondhandtradingplatform.util.UserContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -37,12 +37,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper,User> implements Use
     //查询用户
     //TODO:区分返回自己信息和他人信息
     @Override
-    public Result getByUserId(Long userId) {
-
-        //获取用户id,如果前端没传userId，则从threadLocal中获取
-        if(userId == null){
-            userId = UserContext.getUserId();
-        }
+    public Result<UserDetailResponse> getByUserId(Long userId) {
 
         log.info("获取用户信息请求:userId={}",userId);
 
@@ -64,9 +59,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper,User> implements Use
 
     //更新用户
     @Override
-    public Result updateUser(UpdateUserRequest uur) {
-        //查询用户id
-        Long userId = UserContext.getUserId();
+    public Result<Void> updateUser(Long userId, UpdateUserRequest uur) {
+
         log.info("编辑用户请求:userId={}",userId);
 
         //查询数据库判断是否有该用户
@@ -85,8 +79,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper,User> implements Use
         updateById(user);
 
         //删除redis缓存
-        String token = UserContext.getToken();
-        stringRedisTemplate.delete(LOGIN_TOKEN_KEY + token);
+        stringRedisTemplate.delete(LOGIN_USER_KEY + userId);
 
         //返回结果
         log.info("编辑用户成功:userId={}",userId);
@@ -95,16 +88,15 @@ public class UserServiceImpl extends ServiceImpl<UserMapper,User> implements Use
 
     //退出登录
     @Override
-    public Result logout() {
-        //获取userId写日志
-        Long userId = UserContext.getUserId();
+    public Result<Void> logout(Long userId) {
 
         log.info("退出登录请求:userId={}",userId);
 
+        StpUtil.logout();
+
         //删除token
-        String token = UserContext.getToken();
-        String tokenKey = LOGIN_TOKEN_KEY + token;
-        stringRedisTemplate.delete(tokenKey);
+        String userKey = LOGIN_USER_KEY + userId;
+        stringRedisTemplate.delete(userKey);
 
         //返回结果
         log.info("退出登录成功:userId={}",userId);
@@ -113,7 +105,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper,User> implements Use
 
     //重置密码
     @Override
-    public Result resetPwd(ResetPasswordRequest rpr) {
+    public Result<Void> resetPwd(ResetPasswordRequest rpr) {
         String phone = rpr.getPhone();
         String code = rpr.getCode();
         String newPassword = rpr.getNewPassword();
@@ -151,7 +143,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper,User> implements Use
 
     //用户注册
     @Override
-    public Result register(RegisterRequest rr) {
+    public Result<String> register(RegisterRequest rr) {
         //获取参数
         String phone = rr.getPhone();
         String code = rr.getCode();
@@ -188,12 +180,18 @@ public class UserServiceImpl extends ServiceImpl<UserMapper,User> implements Use
         //保存到数据库
         save(user);
 
+        Long userId = user.getId();
+
+        //注册成功后直接登录
+        StpUtil.login(userId);
+        String token = StpUtil.getTokenValue();
+
         //删除redis中验证码缓存
         stringRedisTemplate.delete(codeKey);
 
         //返回结果
         log.info("用户注册成功:phone={}",phone);
-        return Result.success();
+        return Result.success(token);
     }
 
 }

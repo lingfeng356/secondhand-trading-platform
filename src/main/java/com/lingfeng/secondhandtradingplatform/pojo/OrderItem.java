@@ -15,7 +15,7 @@ public class OrderItem {
 
     private String orderId;
 
-    private String productId;
+    private Long productId;
 
     private String productName;
 

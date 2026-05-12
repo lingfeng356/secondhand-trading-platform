@@ -5,17 +5,17 @@ import com.lingfeng.secondhandtradingplatform.DTO.request.RegisterRequest;
 import com.lingfeng.secondhandtradingplatform.DTO.request.ResetPasswordRequest;
 import com.lingfeng.secondhandtradingplatform.DTO.Result;
 import com.lingfeng.secondhandtradingplatform.DTO.request.UpdateUserRequest;
-import com.lingfeng.secondhandtradingplatform.pojo.User;
+import com.lingfeng.secondhandtradingplatform.DTO.response.UserDetailResponse;
 
 public interface UserService {
 
-    Result getByUserId(Long userId);
+    Result<UserDetailResponse> getByUserId(Long userId);
 
-    Result logout();
+    Result<Void> logout(Long userId);
 
-    Result resetPwd(ResetPasswordRequest rpr);
+    Result<Void> resetPwd(ResetPasswordRequest rpr);
 
-    Result register(RegisterRequest rr);
+    Result<String> register(RegisterRequest rr);
 
-    Result updateUser(UpdateUserRequest uur);
+    Result<Void> updateUser(Long userId, UpdateUserRequest uur);
 }
