@@ -118,4 +118,6 @@ public class ProductController {
     public Result<IPage<Product>> recommendProducts(@RequestBody PageRequest pageRequest){
         return productService.recommendProducts(pageRequest);
     }
+
+    //根据分类展示商品列表
 }

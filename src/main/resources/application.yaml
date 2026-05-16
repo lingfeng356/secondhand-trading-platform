@@ -1,4 +1,8 @@
 spring:
+  servlet:
+    multipart:
+      max-file-size: 2MB        # 单个文件最大大小
+      max-request-size: 10MB    # 总请求最大大小
   datasource:
     url: jdbc:mysql://localhost:3306/second_hand_trading_platform
     username: root
@@ -27,3 +31,8 @@ knife4j:
 
 server:
   port: 8080
+
+# 自定义文件存储配置
+upload:
+  # 头像存储路径，根据你的系统改成合适的位置，如 Linux 下的 /var/uploads/avatars/
+  path: D:\\DevProjects\\static

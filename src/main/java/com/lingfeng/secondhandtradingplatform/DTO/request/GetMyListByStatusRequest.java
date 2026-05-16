@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
@@ -26,6 +27,6 @@ public class GetMyListByStatusRequest {
     @Schema(description = "订单状态",defaultValue = "1",example = "1")
     @Min(value = 1,message = "商品状态最小为1")
     @Max(value = 6,message = "商品状态最大为6")
-    @NotBlank
+    @NotNull
     private Integer status;
 }
