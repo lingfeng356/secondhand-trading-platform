@@ -1,5 +1,6 @@
 package com.lingfeng.secondhandtradingplatform.controller;
 
+import cn.dev33.satoken.annotation.SaCheckLogin;
 import cn.dev33.satoken.stp.StpUtil;
 import com.lingfeng.secondhandtradingplatform.DTO.Result;
 import com.lingfeng.secondhandtradingplatform.DTO.request.ChatMessageRequest;
@@ -30,6 +31,7 @@ public class ChatController {
     //创建会话
     @GetMapping("/conversation/create")
     @Schema(description = "创建会话")
+    @SaCheckLogin
     public Result<ConversationCreateResponse> conversationCreate(@RequestParam Long productId){
         Long buyerId = StpUtil.getLoginIdAsLong();
         return chatService.conversationCreate(productId,buyerId);
@@ -38,6 +40,7 @@ public class ChatController {
     //发送消息
     @MessageMapping("/chat.send")
     @Schema(description = "发送消息")
+    @SaCheckLogin
     public Result<Void> sendMessage(@Payload ChatMessageRequest request, Principal principal){
         return chatService.sendMessage(request,principal);
     }
@@ -45,6 +48,7 @@ public class ChatController {
     //获取用户会话列表
     @GetMapping("/conversation/getList")
     @Schema(description = "获取会话列表")
+    @SaCheckLogin
     public Result<List<ConversationInListResponse>> getList(){
         Long userId = StpUtil.getLoginIdAsLong();
         return chatService.getList(userId);
@@ -53,6 +57,7 @@ public class ChatController {
     //获取会话详情
     @GetMapping("/conversation/detail/{conversationId}")
     @Schema(description = "获取会话详情")
+    @SaCheckLogin
     public Result<ConversationDetailResponse> getConversationDetail(@PathVariable String conversationId){
         Long userId = StpUtil.getLoginIdAsLong();
         return chatService.getConversationDetail(conversationId,userId);
@@ -61,6 +66,7 @@ public class ChatController {
     //分页获取历史消息
     @GetMapping("/conversation/getMessages/{conversationId}")
     @Schema(description = "分页获取历史消息")
+    @SaCheckLogin
     public Result<List<MessageDetailResponse>> getMessages(@PathVariable String conversationId){
         Long userId = StpUtil.getLoginIdAsLong();
         return chatService.getMessages(conversationId,userId);
@@ -69,6 +75,7 @@ public class ChatController {
     //进入会话时标记消息已读
     @PostMapping("/conversation/markIsRead/{conversationId}")
     @Schema(description = "标记消息已读")
+    @SaCheckLogin
     public Result<Void> markIsRead(@PathVariable String conversationId){
         Long userId = StpUtil.getLoginIdAsLong();
         return chatService.markIsRead(conversationId,userId);

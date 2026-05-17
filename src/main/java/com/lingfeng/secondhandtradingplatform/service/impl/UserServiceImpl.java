@@ -3,6 +3,7 @@ package com.lingfeng.secondhandtradingplatform.service.impl;
 
 import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.lingfeng.secondhandtradingplatform.DTO.request.ChangePasswordRequest;
 import com.lingfeng.secondhandtradingplatform.DTO.request.RegisterRequest;
 import com.lingfeng.secondhandtradingplatform.DTO.request.ResetPasswordRequest;
 import com.lingfeng.secondhandtradingplatform.DTO.Result;
@@ -14,9 +15,14 @@ import com.lingfeng.secondhandtradingplatform.pojo.User;
 import com.lingfeng.secondhandtradingplatform.service.UserService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.File;
+import java.io.IOException;
 
 import static com.lingfeng.secondhandtradingplatform.constant.RedisConstant.*;
 
@@ -27,6 +33,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper,User> implements Use
 
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
+
+    @Value("${upload.path}")
+    private String uploadPath; // 例如: /uploads/avatars/
 
     @Autowired
     private UserMapper userMapper;
@@ -83,6 +92,106 @@ public class UserServiceImpl extends ServiceImpl<UserMapper,User> implements Use
 
         //返回结果
         log.info("编辑用户成功:userId={}",userId);
+        return Result.success();
+    }
+
+    //上传图片
+    @Override
+    //TODO:看不懂喵
+    public Result<Void> upload(MultipartFile file, Long userId) {
+
+        log.info("上传图片请求:userId={}",userId);
+
+        try {
+            // 1. 校验文件
+            if (file == null || file.isEmpty()) {
+                log.error("上传图片失败:文件不存在,userId={}",userId);
+                return Result.error(404,"文件不能为空");
+            }
+
+            // 2. 校验文件类型（只允许图片）
+            String contentType = file.getContentType();
+            if (contentType == null || !contentType.startsWith("image/")) {
+                log.error("上传图片失败:文件类型错误,userId={}",userId);
+                return Result.error(400,"只能上传图片文件");
+            }
+
+            // 3. 校验文件大小（例如限制 5MB）
+            if (file.getSize() > 5 * 1024 * 1024) {
+                log.error("上传图片失败:文件过大,userId={}",userId);
+                return Result.error(400,"文件大小不能超过5MB");
+            }
+
+            // 4. 生成唯一文件名
+            String originalFilename = file.getOriginalFilename();
+            String extension = "";
+            if (originalFilename != null && originalFilename.contains(".")) {
+                extension = originalFilename.substring(originalFilename.lastIndexOf("."));
+            }
+            String newFileName = userId + "_" + System.currentTimeMillis() + extension;
+
+            // 5. 创建目录（如果不存在）
+            File destDir = new File(uploadPath);
+            if (!destDir.exists()) {
+                destDir.mkdirs();
+            }
+
+            // 6. 保存文件到本地
+            File destFile = new File(destDir, newFileName);
+            file.transferTo(destFile);
+
+            // 7. 存储相对路径到数据库（用于前端访问）
+            String dbPath = "/static/" + newFileName;  // 根据你的访问路径调整
+
+            User user = new User();
+            user.setId(userId);
+            user.setImg(dbPath);
+            updateById(user);
+
+            log.info("上传图片成功:userId={}",userId);
+            return Result.success();
+
+        } catch (IOException e) {
+            log.error("上传图片失败:发生未知错误,userId={}",userId);
+            return Result.error(400,"上传失败: " + e.getMessage());
+        }
+    }
+
+    //修改密码
+    @Override
+    public Result<Void> changePassword(ChangePasswordRequest request, Long userId) {
+        String phone = request.getPhone();
+        String code = request.getCode();
+        String newPassword = request.getNewPassword();
+        String codeKey = LOGIN_CODE_KEY + phone;
+
+        log.info("修改密码请求:phone={}",phone);
+
+        //校验验证码
+        String realCode = stringRedisTemplate.opsForValue().get(codeKey);
+        if(realCode == null || !realCode.equals(code)){
+            log.warn("修改密码失败:验证码错误,phone={}", phone);
+            return Result.error(400,"验证码错误");
+        }
+
+        //根据手机号去数据库查询是否有该用户
+        User user = query().eq("phone",phone).one();
+        if(user == null){
+            log.warn("重置密码失败:用户不存在,phone={}", phone);
+            return Result.error(404,"用户不存在");
+        }
+
+        //重置密码
+        user.setPassword(newPassword);
+
+        //更新数据库
+        updateById(user);
+
+        //重置成功后删除redis中的验证码缓存
+        stringRedisTemplate.delete(codeKey);
+
+        //返回结果
+        log.info("修改密码成功:phone={}", phone);
         return Result.success();
     }
 

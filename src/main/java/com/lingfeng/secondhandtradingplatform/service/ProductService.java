@@ -1,14 +1,11 @@
 package com.lingfeng.secondhandtradingplatform.service;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.lingfeng.secondhandtradingplatform.DTO.request.ProductListRequest;
-import com.lingfeng.secondhandtradingplatform.DTO.request.PageRequest;
-import com.lingfeng.secondhandtradingplatform.DTO.request.ProductPublishRequest;
+import com.lingfeng.secondhandtradingplatform.DTO.request.*;
 import com.lingfeng.secondhandtradingplatform.DTO.Result;
-import com.lingfeng.secondhandtradingplatform.DTO.request.UpdateProductDetailRequest;
 import com.lingfeng.secondhandtradingplatform.DTO.response.ProductDetailResponse;
 import com.lingfeng.secondhandtradingplatform.pojo.Product;
+import org.springframework.web.multipart.MultipartFile;
 
 public interface ProductService {
     Result<Void> publishProduct(Long userId, ProductPublishRequest ppr);
@@ -28,4 +25,8 @@ public interface ProductService {
     Result<IPage<Product>> showProductList(ProductListRequest productListRequestDTO);
 
     Result<IPage<Product>> recommendProducts(PageRequest pageRequest);
+
+    Result<IPage<Product>> showByCategory(ShowProductByCategoryRequest request);
+
+    Result<Void> upload(MultipartFile file, Long userId, Long productId);
 }

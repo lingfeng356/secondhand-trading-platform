@@ -3,6 +3,7 @@ package com.lingfeng.secondhandtradingplatform.controller;
 
 import cn.dev33.satoken.annotation.SaCheckLogin;
 import cn.dev33.satoken.stp.StpUtil;
+import com.lingfeng.secondhandtradingplatform.DTO.request.ChangePasswordRequest;
 import com.lingfeng.secondhandtradingplatform.DTO.request.RegisterRequest;
 import com.lingfeng.secondhandtradingplatform.DTO.request.ResetPasswordRequest;
 import com.lingfeng.secondhandtradingplatform.DTO.Result;
@@ -17,6 +18,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @Tag(name = "用户模块")
@@ -67,6 +69,7 @@ public class UserController {
     @PostMapping("/logout")
     @Operation(summary = "用户退出登录")
     @ApiResponses(@ApiResponse(responseCode = "401",description = "未登录"))
+    @SaCheckLogin
     public Result<Void> logout(){
         //获取userId
         Long userId = StpUtil.getLoginIdAsLong();
@@ -85,4 +88,21 @@ public class UserController {
     }
 
     //上传头像
+    @PostMapping("/upLoad")
+    @Operation(summary = "上传头像")
+    @SaCheckLogin
+    public Result<Void> upLoad(@RequestParam("file") MultipartFile file){
+        //获取userId
+        Long userId = StpUtil.getLoginIdAsLong();
+        return userService.upload(file,userId);
+    }
+
+    //修改密码
+    @PostMapping("/changePassword")
+    @Operation(summary = "修改密码")
+    @SaCheckLogin
+    public Result<Void> changePassword(@RequestBody ChangePasswordRequest request){
+        Long userId = StpUtil.getLoginIdAsLong();
+        return userService.changePassword(request,userId);
+    }
 }

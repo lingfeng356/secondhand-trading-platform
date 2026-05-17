@@ -6,11 +6,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.lingfeng.secondhandtradingplatform.DTO.request.ProductListRequest;
-import com.lingfeng.secondhandtradingplatform.DTO.request.PageRequest;
-import com.lingfeng.secondhandtradingplatform.DTO.request.ProductPublishRequest;
+import com.lingfeng.secondhandtradingplatform.DTO.request.*;
 import com.lingfeng.secondhandtradingplatform.DTO.Result;
-import com.lingfeng.secondhandtradingplatform.DTO.request.UpdateProductDetailRequest;
 import com.lingfeng.secondhandtradingplatform.DTO.response.ProductDetailResponse;
 import com.lingfeng.secondhandtradingplatform.converter.ProductConverter;
 import com.lingfeng.secondhandtradingplatform.mapper.ProductMapper;
@@ -20,10 +17,14 @@ import com.lingfeng.secondhandtradingplatform.pojo.User;
 import com.lingfeng.secondhandtradingplatform.service.ProductService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -37,6 +38,10 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
 
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
+
+    @Value("${upload.path}")
+    private String uploadPath; // 例如: /uploads/avatars/
+
 
     @Autowired
     private ProductMapper productMapper;
@@ -472,5 +477,106 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         return Result.success(page);
     }
 
+    //分类展示商品
+    @Override
+    public Result<IPage<Product>> showByCategory(ShowProductByCategoryRequest request) {
+
+        log.info("分类展示商品请求");
+
+        Integer pageNum = request.getPageNum();
+        Integer pageSize = request.getPageSize();
+        String category = request.getCategory();
+
+        if(category == null){
+            log.error("分类展示商品失败:分类为空");
+            return Result.error(400,"分类为空");
+        }
+
+        Page<Product> page = new Page<>(pageNum,pageSize);
+
+        LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
+
+        wrapper.eq(Product::getCategory,category)
+                .orderByAsc(Product::getCreateTime);
+
+        page(page,wrapper);
+
+        log.info("分类展示商品成功");
+        return Result.success(page);
+    }
+
+    //TODO:如果有旧的图片，需要删除旧的图片，防止硬盘浪费
+    //上传商品图片
+    @Override
+    public Result<Void> upload(MultipartFile file, Long userId, Long productId) {
+
+        log.info("上传商品图片请求:userId={},productId={}",userId,productId);
+
+        //权限验证
+        Product product = getById(productId);
+
+        if(product == null){
+            log.error("上传商品图片失败:商品不存在,userId={},productId={}",userId,productId);
+            return Result.error(404,"商品不存在");
+        }
+
+        if(!userId.equals(product.getUserId())){
+            log.error("上传商品图片失败:无权限,userId={},productId={}",userId,productId);
+            return Result.error(403,"无权限");
+        }
+
+
+        try {
+            // 1. 校验文件
+            if (file == null || file.isEmpty()) {
+                log.error("上传商品图片失败:文件不存在,userId={},productId={}",userId,productId);
+                return Result.error(404,"文件不能为空");
+            }
+
+            // 2. 校验文件类型（只允许图片）
+            String contentType = file.getContentType();
+            if (contentType == null || !contentType.startsWith("image/")) {
+                log.error("上传商品图片失败:文件类型错误,userId={},productId={}",userId,productId);
+                return Result.error(400,"只能上传图片文件");
+            }
+
+            // 3. 校验文件大小（例如限制 5MB）
+            if (file.getSize() > 5 * 1024 * 1024) {
+                log.error("上传商品图片失败:文件过大,userId={},productId={}",userId,productId);
+                return Result.error(400,"文件大小不能超过5MB");
+            }
+
+            // 4. 生成唯一文件名
+            String originalFilename = file.getOriginalFilename();
+            String extension = "";
+            if (originalFilename != null && originalFilename.contains(".")) {
+                extension = originalFilename.substring(originalFilename.lastIndexOf("."));
+            }
+            String newFileName = userId + "_" + System.currentTimeMillis() + extension;
+
+            // 5. 创建目录（如果不存在）
+            File destDir = new File(uploadPath);
+            if (!destDir.exists()) {
+                destDir.mkdirs();
+            }
+
+            // 6. 保存文件到本地
+            File destFile = new File(destDir, newFileName);
+            file.transferTo(destFile);
+
+            // 7. 存储相对路径到数据库（用于前端访问）
+            String dbPath = "/static/" + newFileName;  // 根据你的访问路径调整
+
+            product.setImages(dbPath);
+            updateById(product);
+
+            log.info("上传商品图片成功:userId={},productId={}",userId,productId);
+            return Result.success();
+
+        } catch (IOException e) {
+            log.error("上传商品图片失败:发生未知错误,userId={},productId={}",userId,productId);
+            return Result.error(400,"上传失败: " + e.getMessage());
+        }
+    }
 
 }

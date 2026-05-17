@@ -1,24 +1,24 @@
 package com.lingfeng.secondhandtradingplatform.controller;
 
 
+import cn.dev33.satoken.annotation.SaCheckLogin;
 import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.lingfeng.secondhandtradingplatform.DTO.request.ProductListRequest;
-import com.lingfeng.secondhandtradingplatform.DTO.request.PageRequest;
-import com.lingfeng.secondhandtradingplatform.DTO.request.ProductPublishRequest;
+import com.lingfeng.secondhandtradingplatform.DTO.request.*;
 import com.lingfeng.secondhandtradingplatform.DTO.Result;
-import com.lingfeng.secondhandtradingplatform.DTO.request.UpdateProductDetailRequest;
 import com.lingfeng.secondhandtradingplatform.DTO.response.ProductDetailResponse;
 import com.lingfeng.secondhandtradingplatform.pojo.Product;
 import com.lingfeng.secondhandtradingplatform.service.ProductService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @Tag(name = "商品模块")
@@ -32,6 +32,7 @@ public class ProductController {
     //发布商品
     @PostMapping("/publishProduct")
     @Operation(summary = "发布商品")
+    @SaCheckLogin
     public Result<Void> publishProduct(@RequestBody ProductPublishRequest ppr){
         Long userId = StpUtil.getLoginIdAsLong();
         return productService.publishProduct(userId,ppr);
@@ -52,6 +53,7 @@ public class ProductController {
             @ApiResponse(responseCode = "404",description = "商品id无效"),
             @ApiResponse(responseCode = "403",description = "无修改权限")
     })
+    @SaCheckLogin
     public Result<Void> productUpdate(@RequestBody UpdateProductDetailRequest updr
                                 , @PathVariable Long productId){
         Long userId = StpUtil.getLoginIdAsLong();
@@ -66,6 +68,7 @@ public class ProductController {
             @ApiResponse(responseCode = "400",description = "商品当前状态无法修改"),
             @ApiResponse(responseCode = "403",description = "无修改权限")
     })
+    @SaCheckLogin
     public Result<Void> removeProduct(@PathVariable Long productId){
         Long userId = StpUtil.getLoginIdAsLong();
         return productService.removeProduct(userId,productId);
@@ -79,6 +82,7 @@ public class ProductController {
             @ApiResponse(responseCode = "400",description = "商品当前状态无法修改"),
             @ApiResponse(responseCode = "403",description = "无修改权限")
     })
+    @SaCheckLogin
     public Result<Void> deleteProduct(@PathVariable Long productId){
         Long userId = StpUtil.getLoginIdAsLong();
         return productService.deleteProduct(userId,productId);
@@ -92,6 +96,7 @@ public class ProductController {
             @ApiResponse(responseCode = "400",description = "商品当前状态无法修改"),
             @ApiResponse(responseCode = "403",description = "无修改权限")
     })
+    @SaCheckLogin
     public Result<Void> republishProduct(@PathVariable Long productId){
         Long userId = StpUtil.getLoginIdAsLong();
         return productService.republishProduct(userId,productId);
@@ -100,6 +105,7 @@ public class ProductController {
     //我的发布商品
     @PostMapping("/myList")
     @Operation(summary = "查询我发布的商品")
+    @SaCheckLogin
     public Result<IPage<Product>> showMyList(@RequestBody PageRequest pageRequest){
         Long userId = StpUtil.getLoginIdAsLong();
         return productService.showMyList(userId,pageRequest);
@@ -120,4 +126,17 @@ public class ProductController {
     }
 
     //根据分类展示商品列表
+    @GetMapping("/showByCategory")
+    @Operation(summary = "分类展示商品")
+    public Result<IPage<Product>> showByCategory(@RequestBody ShowProductByCategoryRequest request){
+        return productService.showByCategory(request);
+    }
+
+    @PostMapping("/upload/{productId}")
+    @Operation(summary = "上传商品图片")
+    @SaCheckLogin
+    public Result<Void> upload(@RequestParam("file") MultipartFile file,@PathVariable Long productId){
+        Long userId = StpUtil.getLoginIdAsLong();
+        return productService.upload(file,userId,productId);
+    }
 }
