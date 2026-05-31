@@ -56,9 +56,9 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     @Autowired
     private OrderMapper orderMapper;
 
-    //创建订单 TODO:目前做的是买单个商品，待做一次购买多个商品
+    //创建订单
     @Override
-    public Result<Void> createOrder(Long userId, Long productId) {
+    public Result<Void> createOrder(Long userId, Long productId, Integer quantity) {
 
         log.info("创建订单请求:userId={},productId={}",userId,productId);
 
@@ -76,6 +76,12 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             return Result.error(404,"商品不存在");
         }
 
+        //判断商品数量是否足够
+        if(quantity > product.getStock()){
+            log.warn("创建订单失败:商品库存不足,userId={},productId={}",userId,productId);
+            return Result.error(404,"商品库存不足");
+        }
+
         //校验商品状态
         Integer status = product.getStatus();
         if(status != 1){
@@ -90,7 +96,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         }
 
         //计算订单金额
-        BigDecimal price = product.getPrice();
+        BigDecimal price = product.getPrice().multiply(BigDecimal.valueOf(quantity));
 
         //生成订单编号(时间戳加随机数)
         String orderNo = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS"))
@@ -114,12 +120,25 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         orderItem.setProductImage(product.getImages());
         orderItem.setAmount(order.getPayAmount());
         orderItem.setPrice(order.getPayAmount());
-        orderItem.setQuantity(1);
+        orderItem.setQuantity(quantity);
         orderItemMapper.insert(orderItem);
 
         //更新商品状态
-        product.setStatus(2);
-        productMapper.updateById(product);
+        int oldStock = product.getStock();
+        int updated = productMapper.updateProductStock(productId,quantity,oldStock);
+
+        if(updated == 0){
+            log.error("创建订单失败:订单库存不足,productId={}",productId);
+            return Result.error(404,"商品库存不足");
+        }
+
+        product.setStock(oldStock - quantity);
+
+        if(product.getStock() == 0){
+            product.setStatus(2);
+            productMapper.updateById(product);
+        }
+
         stringRedisTemplate.delete(PRODUCT_KEY + productId);
 
         //返回信息

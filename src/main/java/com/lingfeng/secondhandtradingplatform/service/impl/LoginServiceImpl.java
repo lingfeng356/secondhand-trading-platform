@@ -93,6 +93,16 @@ public class LoginServiceImpl extends ServiceImpl<UserMapper,User> implements Lo
     public Result<String> sendCode(String phone) {
         //发送验证码
         log.info("发送验证码请求:phone={}",phone);
+
+        String limitKey = LOGIN_LIMIT_KEY + phone;
+        Long count = stringRedisTemplate.opsForValue().increment(limitKey);
+        if(count == 1){
+            stringRedisTemplate.expire(limitKey,LOGIN_LIMIT_TTL,TimeUnit.MINUTES);
+        }else if(count > 1){
+            log.warn("发送验证码失败:发送过快,phone:{}",phone);
+            return Result.error(429, "发送频率过快，请1分钟后重试");
+        }
+
         String code = RandomUtil.randomNumbers(6);
 
         //将验证码存储到redis中

@@ -1,5 +1,6 @@
 package com.lingfeng.secondhandtradingplatform.service.impl;
 
+import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -10,14 +11,14 @@ import com.lingfeng.secondhandtradingplatform.DTO.request.*;
 import com.lingfeng.secondhandtradingplatform.DTO.Result;
 import com.lingfeng.secondhandtradingplatform.DTO.response.ProductDetailResponse;
 import com.lingfeng.secondhandtradingplatform.converter.ProductConverter;
-import com.lingfeng.secondhandtradingplatform.mapper.ProductMapper;
-import com.lingfeng.secondhandtradingplatform.mapper.UserMapper;
-import com.lingfeng.secondhandtradingplatform.pojo.Product;
-import com.lingfeng.secondhandtradingplatform.pojo.User;
+import com.lingfeng.secondhandtradingplatform.mapper.*;
+import com.lingfeng.secondhandtradingplatform.pojo.*;
+import com.lingfeng.secondhandtradingplatform.rabbitProducer.ProductRabbitProducer;
 import com.lingfeng.secondhandtradingplatform.service.ProductService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -25,12 +26,12 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static com.lingfeng.secondhandtradingplatform.constant.RedisConstant.PRODUCT_KEY;
-import static com.lingfeng.secondhandtradingplatform.constant.RedisConstant.PRODUCT_TTL;
+import static com.lingfeng.secondhandtradingplatform.constant.RedisConstant.*;
 
 @Slf4j
 @Service
@@ -39,9 +40,17 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
 
+    @Autowired
+    private CollectMapper collectMapper;
+
+    @Autowired
+    private ReviewMapper reviewMapper;
+
     @Value("${upload.path}")
     private String uploadPath; // 例如: /uploads/avatars/
 
+    @Autowired
+    private ProductRabbitProducer producer;
 
     @Autowired
     private ProductMapper productMapper;
@@ -51,6 +60,10 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
 
     @Autowired
     private ProductConverter productConverter;
+    @Autowired
+    private OrderItemMapper orderItemMapper;
+    @Autowired
+    private OrderMapper orderMapper;
 
     //发布商品
     @Override
@@ -93,6 +106,12 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
 
         log.info("查询商品请求:productId={}",productId);
 
+        Long userId = null;
+
+        if(StpUtil.isLogin()){
+            userId = StpUtil.getLoginIdAsLong();
+        }
+
         //校验id
         if(productId == null || productId <= 0){
             log.warn("查询商品失败:商品不存在,productId={}",productId);
@@ -115,25 +134,15 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
                 log.warn("查询商品失败:商品不存在,productId={}",productId);
                 return Result.error(404,"商品不存在");
             }
-            ProductDetailResponse pdr = productConverter.toProductDetailResponse(product);
 
-            // 浏览量+1（处理 null 的情况）
-            int currentViewCount = pdr.getViewCount() == null ? 0 : pdr.getViewCount();
-            int newViewCount = currentViewCount + 1;
-            pdr.setViewCount(newViewCount);
+            producer.sendViewMessage(productId);
+
+            ProductDetailResponse pdr = productConverter.toProductDetailResponse(product);
 
             //查询user，为注入卖家信息准备
             User user = userMapper.selectById(product.getUserId());
             pdr.setSellerName(user.getUsername());
             pdr.setSellerImg(user.getImg());
-
-            // 更新数据库
-            product.setViewCount(newViewCount);
-            updateById(product);
-
-            // 更新Redis中的浏览量
-            stringRedisTemplate.opsForHash().put(key, "viewCount", String.valueOf(newViewCount));
-            stringRedisTemplate.expire(key, PRODUCT_TTL, TimeUnit.MINUTES);
 
             log.info("查询商品成功:productId={}",productId);
             return Result.success(pdr);
@@ -152,23 +161,15 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
             return Result.error(404,"商品不存在");
         }
 
+        producer.sendViewMessage(productId);
+
         //封装响应DTO
         ProductDetailResponse pdr = productConverter.toProductDetailResponse(product);
 
-        // 浏览量+1（处理 null 的情况）
-        int currentViewCount = product.getViewCount() == null ? 0 : product.getViewCount();
-        int newViewCount = currentViewCount + 1;
-        pdr.setViewCount(newViewCount);
-
-        //TODO:定时任务更新数据库，否则浏览一次就更新一次容易崩
         //查询user，为注入卖家信息准备
         User user = userMapper.selectById(product.getUserId());
         pdr.setSellerName(user.getUsername());
         pdr.setSellerImg(user.getImg());
-
-        //更新数据库
-        product.setViewCount(newViewCount);
-        updateById(product);
 
         //缓存redis
         //将product对象转成map再将内部所有属性转换成String类型
@@ -579,4 +580,343 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         }
     }
 
+    //点赞商品
+    //TODO：并发安全，优化性能
+    @Override
+    public Result<Void> likeProduct(Long userId,Long productId) {
+
+        log.info("点赞商品请求:userId={},productId={}",userId,productId);
+
+        if(productId == null){
+            log.warn("点赞商品失败:商品不存在,userId={},productId={}",userId,productId);
+            return Result.error(404,"商品不存在");
+        }
+
+        producer.sendLikeMessage(userId,productId);
+
+        log.info("点赞商品完成:userId={},productId={}",userId,productId);
+        return Result.success();
+    }
+
+    //取消点赞
+    @Override
+    public Result<Void> cancelLikeProduct(Long userId, Long productId) {
+        log.info("取消点赞商品请求:userId={},productId={}",userId,productId);
+
+        if(productId == null){
+            log.warn("取消点赞商品失败:商品不存在,userId={},productId={}",userId,productId);
+            return Result.error(404,"商品不存在");
+        }
+
+        String key = PRODUCT_LIKE_KEY + productId;
+
+        Long removed = stringRedisTemplate.opsForSet().remove(key,userId.toString());
+
+        if(removed != null && removed > 0){
+            log.info("取消点赞商品完成:userId={},productId={}",userId,productId);
+            return Result.success();
+        }else{
+            log.warn("取消点赞失败: 未点过赞, userId={}, productId={}", userId, productId);
+            return Result.error(400, "尚未点赞");
+        }
+
+    }
+
+    //检查是否点赞
+    @Override
+    public Result<Boolean> checkIsLike(Long userId, Long productId) {
+        log.info("检查是否点赞请求:userId={},productId={}",userId,productId);
+
+        if(productId == null){
+            log.warn("检查是否点赞失败:商品不存在,userId={},productId={}",userId,productId);
+            return Result.error(404,"商品不存在");
+        }
+
+        String key = PRODUCT_LIKE_KEY + productId;
+
+        Boolean isLiked = stringRedisTemplate.opsForSet().isMember(key,userId.toString());
+
+        if(!isLiked){
+            log.info("检查是否点赞成功:未点赞,userId={},productId={}",userId,productId);
+            return Result.success(false);
+        }
+
+        log.info("检查是否点赞成功:已点赞,userId={},productId={}",userId,productId);
+        return Result.success(true);
+    }
+
+    //收藏商品
+    //TODO：改定时异步更新，还有其他问题问ai
+    @Override
+    public Result<Void> collectProduct(Long userId, Long productId) {
+        log.info("收藏商品请求:userId={},productId={}",userId,productId);
+
+        if(productId == null){
+            log.warn("收藏商品失败:商品不存在,userId={},productId={}",userId,productId);
+            return Result.error(404,"商品不存在");
+        }
+
+        //联合唯一索引判断是否重复并抛出异常
+        try {
+            Collect collect = new Collect();
+            collect.setProductId(productId);
+            collect.setUserId(userId);
+            LocalDateTime time = LocalDateTime.now();
+            collect.setTime(time);
+
+            //存数据库
+            collectMapper.insert(collect);
+
+            //存redis
+            String key = PRODUCT_COLLECT_KEY + productId;
+            stringRedisTemplate.opsForSet().add(key,userId.toString());
+
+            Product product = getById(productId);
+            Integer newCollectCount = product.getCollectCount() + 1;
+            product.setCollectCount(newCollectCount);
+            updateById(product);
+
+            log.info("收藏商品成功:userId={},productId={}",userId,productId);
+            return Result.success();
+        } catch (DuplicateKeyException e) {
+            log.warn("收藏商品失败:userId={},productId={}",userId,productId);
+            return Result.error(400,"重复收藏");
+        }
+    }
+
+    //取消收藏
+    @Override
+    public Result<Void> cancelCollect(Long userId, Long productId) {
+        log.info("取消收藏商品请求:userId={},productId={}",userId,productId);
+
+        if(productId == null){
+            log.warn("取消收藏商品失败:商品不存在,userId={},productId={}",userId,productId);
+            return Result.error(404,"商品不存在");
+        }
+
+        String key = PRODUCT_COLLECT_KEY + productId;
+
+        //判断是否收藏
+        Boolean isCollected = stringRedisTemplate.opsForSet().isMember(key,userId.toString());
+
+        if(!isCollected){
+            log.warn("取消收藏商品失败:未收藏,userId={},productId={}",userId,productId);
+            return Result.error(400,"未收藏");
+        }
+
+         //先删redis后删数据库
+        stringRedisTemplate.opsForSet().remove(key,userId.toString());
+
+        LambdaQueryWrapper<Collect> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Collect::getUserId,userId)
+                .eq(Collect::getProductId,productId);
+        collectMapper.delete(wrapper);
+
+        Product product = getById(productId);
+        Integer newCollectCount = product.getCollectCount() - 1;
+        product.setCollectCount(newCollectCount);
+        updateById(product);
+
+        log.info("取消收藏商品成功:userId={},productId={}",userId,productId);
+        return Result.success();
+    }
+
+    //确认是否收藏
+    @Override
+    public Result<Boolean> checkIsCollect(Long userId, Long productId) {
+        log.info("确认收藏商品请求:userId={},productId={}",userId,productId);
+
+        if(productId == null){
+            log.warn("确认收藏商品失败:商品不存在,userId={},productId={}",userId,productId);
+            return Result.error(404,"商品不存在");
+        }
+
+        //先从redis查后从数据库查
+        String key = PRODUCT_COLLECT_KEY + productId;
+        Boolean isCollect = stringRedisTemplate.opsForSet().isMember(key,userId.toString());
+
+        if(isCollect){
+            log.info("确认收藏商品请求成功:已收藏,userId={},productId={}",userId,productId);
+            return Result.success(true);
+        }
+
+        //去数据库查
+        LambdaQueryWrapper<Collect> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Collect::getUserId,userId)
+                .eq(Collect::getProductId,productId);
+        Collect collect = collectMapper.selectOne(wrapper);
+
+        if(collect == null){
+            log.info("确认收藏商品请求成功:未收藏,userId={},productId={}",userId,productId);
+            return Result.success(false);
+        }
+
+        log.info("确认收藏商品请求成功:已收藏,userId={},productId={}",userId,productId);
+        return Result.success(true);
+    }
+
+    //查询我的收藏商品
+    @Override
+    public Result<Page<Product>> myCollectProducts(Long userId, PageRequest pageRequest) {
+        log.info("查看我的收藏商品请求:userId={}",userId);
+
+        Integer pageNum = pageRequest.getPageNum();
+        Integer pageSize = pageRequest.getPageSize();
+
+        Page<Product> page = new Page<>(pageNum,pageSize);
+
+        LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
+        wrapper.inSql(Product::getId,"select product_id from collect_record where user_id = " + userId + " order by time desc");
+
+        productMapper.selectPage(page,wrapper);
+
+        return Result.success(page);
+    }
+
+    //发布评价
+    @Override
+    public Result<Void> publishReview(Long userId, PublishReviewRequest request) {
+        Long productId = request.getProductId();
+        String content = request.getContent();
+        Integer rating = request.getRating();
+        String orderId = request.getOrderId();
+
+        log.info("发布评价请求:userId={},productId={}",userId,productId);
+
+        //鉴权
+        Order order = orderMapper.selectById(orderId);
+
+        if(order == null){
+            log.warn("发布评价失败:订单不存在,userId={}.productId={}",userId,productId);
+            return Result.error(404,"订单不存在");
+        }
+
+        Long realUserId = order.getUserId();
+
+        if(!userId.equals(realUserId)){
+            log.warn("发布评价失败:不是自己的订单,userId={}.productId={}",userId,productId);
+            return Result.error(403,"无权限");
+        }
+
+        //订单状态校验
+        Integer status = order.getStatus();
+        if(status != 4){
+            log.warn("发布评价失败:订单未完成,userId={}.productId={}",userId,productId);
+            return Result.error(400,"订单未完成");
+        }
+
+        //重复评价校验
+        LambdaQueryWrapper<Review> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Review::getUserId,userId)
+                .eq(Review::getProductId,productId)
+                .eq(Review::getOrderId,orderId);
+
+        Review r = reviewMapper.selectOne(wrapper);
+
+        if(r != null){
+            log.warn("发布评价失败:重复评价,userId={}.productId={}",userId,productId);
+            return Result.error(400,"重复评价");
+        }
+
+        //商品匹配校验
+        LambdaQueryWrapper<OrderItem> wrapper1 = new LambdaQueryWrapper<>();
+        wrapper1.eq(OrderItem::getProductId,productId)
+                .eq(OrderItem::getOrderId,orderId);
+
+        OrderItem orderItem = orderItemMapper.selectOne(wrapper1);
+
+        if(orderItem == null){
+            log.warn("发布评价失败:订单与商品不匹配,userId={}.productId={}",userId,productId);
+            return Result.error(400,"订单与商品不匹配");
+        }
+
+        Review review = new Review();
+        review.setProductId(productId);
+        review.setUserId(userId);
+        review.setContent(content);
+        review.setRating(rating);
+        review.setOrderId(orderId);
+
+        reviewMapper.insert(review);
+
+        log.info("发布评价成功:userId={},productId={}",userId,productId);
+        return Result.success();
+    }
+
+    //删除评价
+    @Override
+    public Result<Void> deleteReview(Long userId, Long reviewId) {
+        log.info("删除评价请求:userId={},reviewId={}",userId,reviewId);
+
+        if(reviewId == null){
+            log.warn("删除评价失败:评价不存在,userId={},reviewId={}",userId,reviewId);
+            return Result.error(404,"评价不存在");
+        }
+
+        //鉴权
+        Review review = reviewMapper.selectById(reviewId);
+        if(!userId.equals(review.getUserId())){
+            log.warn("删除评价失败:无权限,userId={},reviewId={}",userId,reviewId);
+            return Result.error(403,"无权限");
+        }
+
+        reviewMapper.deleteById(reviewId);
+
+        log.info("删除评价成功:userId={},reviewId={}",userId,reviewId);
+        return Result.success();
+    }
+
+    //商家回复
+    @Override
+    public Result<Void> replyReview(Long userId, ReplyReviewRequest request) {
+        Long reviewId = request.getReviewId();
+        String replyContent = request.getReplyContent();
+
+        log.info("商家回复请求:userId={},reviewId={}",userId,reviewId);
+
+        if(reviewId == null){
+            log.warn("商家回复失败:评价不存在,userId={},reviewId={}",userId,reviewId);
+            return Result.error(404,"评价不存在");
+        }
+
+        //鉴权
+        Review review = reviewMapper.selectById(reviewId);
+        Long productId = review.getProductId();
+        Product product = getById(productId);
+        if(product == null){
+            log.warn("商家回复失败:商品不存在,userId={},reviewId={}",userId,reviewId);
+            return Result.error(404,"商品不存在");
+        }
+
+        if(!userId.equals(product.getUserId())){
+            log.warn("商家回复失败:无权限,userId={},reviewId={}",userId,reviewId);
+            return Result.error(403,"无权限");
+        }
+
+        review.setReplyContent(replyContent);
+        review.setReplyTime(LocalDateTime.now());
+        reviewMapper.updateById(review);
+
+        log.info("商家回复成功:userId={},reviewId={}",userId,reviewId);
+        return Result.success();
+    }
+
+    //显示评价列表
+    @Override
+    public Result<Page<Review>> showReviewList(Long userId, Long productId, PageRequest pageRequest) {
+        log.info("展示评价列表:productId={}",productId);
+
+        Integer pageNum = pageRequest.getPageNum();
+        Integer pageSize = pageRequest.getPageSize();
+
+        Page<Review> page = new Page<>(pageNum,pageSize);
+        LambdaQueryWrapper<Review> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Review::getProductId,productId)
+                .orderByDesc(Review::getCreateTime);
+
+        reviewMapper.selectPage(page,wrapper);
+
+        log.info("展示评价成功:productId={}",productId);
+        return Result.success(page);
+    }
 }

@@ -5,6 +5,7 @@ import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.lingfeng.secondhandtradingplatform.DTO.Result;
 import com.lingfeng.secondhandtradingplatform.DTO.request.GetMyListByStatusRequest;
+import com.lingfeng.secondhandtradingplatform.DTO.request.OrderCreateRequest;
 import com.lingfeng.secondhandtradingplatform.DTO.request.PageRequest;
 import com.lingfeng.secondhandtradingplatform.DTO.response.OrderDetailResponse;
 import com.lingfeng.secondhandtradingplatform.pojo.Order;
@@ -29,7 +30,7 @@ public class OrderController {
     private OrderService orderService;
 
     //创建订单
-    @PostMapping("/create/{productId}")
+    @PostMapping("/create")
     @Operation(summary = "创建订单")
     @ApiResponses({
             @ApiResponse(responseCode = "400",description = "商品id无效"),
@@ -37,9 +38,11 @@ public class OrderController {
             @ApiResponse(responseCode = "404",description = "商品不存在")
     })
     @SaCheckLogin
-    public Result<Void> createOrder(@PathVariable Long productId){
+    public Result<Void> createOrder(@RequestBody OrderCreateRequest request){
         Long userId = StpUtil.getLoginIdAsLong();
-        return orderService.createOrder(userId,productId);
+        Long productId = request.getProductId();
+        Integer quantity = request.getQuantity();
+        return orderService.createOrder(userId,productId,quantity);
     }
 
     //订单详情

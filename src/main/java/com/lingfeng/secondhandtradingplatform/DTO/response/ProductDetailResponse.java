@@ -64,4 +64,10 @@ public class ProductDetailResponse {
 
     @Schema(description = "卖家头像")
     private String sellerImg;
+
+    @Schema(description = "商品库存")
+    private Integer stock;
+
+    @Schema(description = "商品收藏量")
+    private Integer collectStock;
 }

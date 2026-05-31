@@ -77,4 +77,8 @@ public class Product {
     private LocalDateTime createTime;
 
     private LocalDateTime updateTime;
+
+    private Integer stock;
+
+    private Integer collectCount;
 }

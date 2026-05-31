@@ -11,7 +11,7 @@ import com.lingfeng.secondhandtradingplatform.pojo.Order;
 public interface OrderService {
 
 
-    Result<Void> createOrder(Long userId, Long productId);
+    Result<Void> createOrder(Long userId, Long productId, Integer quantity);
 
     Result<OrderDetailResponse> orderDetail(Long userId, String orderId);
 

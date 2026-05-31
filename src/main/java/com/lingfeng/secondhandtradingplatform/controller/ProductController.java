@@ -9,12 +9,14 @@ import com.lingfeng.secondhandtradingplatform.DTO.request.*;
 import com.lingfeng.secondhandtradingplatform.DTO.Result;
 import com.lingfeng.secondhandtradingplatform.DTO.response.ProductDetailResponse;
 import com.lingfeng.secondhandtradingplatform.pojo.Product;
+import com.lingfeng.secondhandtradingplatform.pojo.Review;
 import com.lingfeng.secondhandtradingplatform.service.ProductService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.websocket.server.PathParam;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -126,17 +128,117 @@ public class ProductController {
     }
 
     //根据分类展示商品列表
-    @GetMapping("/showByCategory")
+    @PostMapping("/showByCategory")
     @Operation(summary = "分类展示商品")
     public Result<IPage<Product>> showByCategory(@RequestBody ShowProductByCategoryRequest request){
         return productService.showByCategory(request);
     }
 
+    //上传商品图片
     @PostMapping("/upload/{productId}")
     @Operation(summary = "上传商品图片")
     @SaCheckLogin
     public Result<Void> upload(@RequestParam("file") MultipartFile file,@PathVariable Long productId){
         Long userId = StpUtil.getLoginIdAsLong();
         return productService.upload(file,userId,productId);
+    }
+
+    //点赞商品
+    @PostMapping("/like/{productId}")
+    @Operation(summary = "点赞商品")
+    @SaCheckLogin
+    public Result<Void> likeProduct(@PathVariable("productId") Long productId){
+        Long userId = StpUtil.getLoginIdAsLong();
+        return productService.likeProduct(userId,productId);
+    }
+
+    //取消点赞
+    @PostMapping("/cancelLike/{productId}")
+    @Operation(summary = "取消点赞商品")
+    @SaCheckLogin
+    public Result<Void> cancelLikeProduct(@PathVariable("productId") Long productId){
+        Long userId = StpUtil.getLoginIdAsLong();
+        return productService.cancelLikeProduct(userId,productId);
+    }
+
+    //检查是否已点赞
+    @GetMapping("/checkIsLike/{productId}")
+    @Operation(summary = "检查是否点赞")
+    @SaCheckLogin
+    public Result<Boolean> checkIsLike(@PathVariable("productId") Long productId){
+        Long userId = StpUtil.getLoginIdAsLong();
+        return productService.checkIsLike(userId,productId);
+    }
+
+    //收藏
+    @PostMapping("/collectProduct/{productId}")
+    @Operation(summary = "收藏商品")
+    @SaCheckLogin
+    public Result<Void> collectProduct(@PathVariable("productId") Long productId){
+        Long userId = StpUtil.getLoginIdAsLong();
+        return productService.collectProduct(userId,productId);
+    }
+
+    //取消收藏
+    @PostMapping("/cancelCollect/{productId}")
+    @Operation(summary = "取消收藏")
+    @SaCheckLogin
+    public Result<Void> cancelCollect(@PathVariable("productId") Long productId){
+        Long userId = StpUtil.getLoginIdAsLong();
+        return productService.cancelCollect(userId,productId);
+    }
+
+    //是否收藏
+    @GetMapping("/checkCollect/{productId}")
+    @Operation(summary = "是否收藏")
+    @SaCheckLogin
+    public Result<Boolean> checkCollect(@PathVariable("productId") Long productId){
+        Long userId = StpUtil.getLoginIdAsLong();
+        return productService.checkIsCollect(userId,productId);
+    }
+
+    //我的收藏商品
+    @PostMapping("/myCollectProducts")
+    @Operation(summary = "我的收藏商品")
+    @SaCheckLogin
+    public Result<Page<Product>> myCollectProducts(@RequestBody PageRequest pageRequest){
+        Long userId = StpUtil.getLoginIdAsLong();
+        return productService.myCollectProducts(userId,pageRequest);
+    }
+
+    //发布评价
+    @PostMapping("/publishReview")
+    @Operation(summary = "发布评价")
+    @SaCheckLogin
+    public Result<Void> publishReview(@RequestBody PublishReviewRequest request){
+        Long userId = StpUtil.getLoginIdAsLong();
+        return productService.publishReview(userId,request);
+    }
+
+    //删除评价
+    @PostMapping("/deleteReview/{reviewId}")
+    @Operation(summary = "删除评价")
+    @SaCheckLogin
+    public Result<Void> deleteReview(@PathVariable("reviewId") Long reviewId){
+        Long userId = StpUtil.getLoginIdAsLong();
+        return productService.deleteReview(userId,reviewId);
+    }
+
+    //显示评价列表
+    @PostMapping("/showReviewList/{productId}")
+    @Operation(summary = "显示评价")
+    public Result<Page<Review>> showReviewList(@PathParam("productId") Long productId,
+                                               @RequestBody PageRequest pageRequest){
+        Long userId = StpUtil.getLoginIdAsLong();
+        return productService.showReviewList(userId,productId,pageRequest);
+    }
+
+    //商家回复
+    @PostMapping("/reply")
+    @Operation(summary = "商家回复")
+    @SaCheckLogin
+    public Result<Void> replyReview(@RequestBody ReplyReviewRequest request){
+        Long userId = StpUtil.getLoginIdAsLong();
+        return productService.replyReview(userId,request);
     }
 }

@@ -55,4 +55,9 @@ public class UpdateProductDetailRequest {
     @Min(value = 1, message = "成色参数错误")
     @Max(value = 3, message = "成色参数错误")
     private Integer productCondition;
+
+    @Schema(description = "商品库存")
+    @Min(value = 0,message = "商品库存数量错误")
+    @Max(value = 999,message = "商品库存数量错误")
+    private Integer stock;
 }

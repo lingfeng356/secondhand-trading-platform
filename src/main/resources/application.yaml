@@ -1,4 +1,9 @@
 spring:
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
   servlet:
     multipart:
       max-file-size: 2MB        # 单个文件最大大小
