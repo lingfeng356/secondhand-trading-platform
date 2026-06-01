@@ -20,9 +20,9 @@ public interface ProductMapper extends BaseMapper<Product> {
     int batchIncrementLikeCount(@Param("productId") Long productId,
                                 @Param("increment") Integer increment);
 
-    //扣减商品库存
-    @Update("update product set stock = stock - #{quantity} where id = #{productId} and stock = #{oldStock}")
-    int updateProductStock(@Param("productId") Long productId,
-                           @Param("quantity") int quantity,
-                            @Param("oldStock") int oldStock);
+    //更新商品库存
+    @Update("update product set stock = #{stock} , status = #{status} where id = #{productId}")
+    int updateProductStockAndStatus(@Param("productId") Long productId
+            ,@Param("stock") Integer stock,
+                           @Param("status") Integer status);
 }

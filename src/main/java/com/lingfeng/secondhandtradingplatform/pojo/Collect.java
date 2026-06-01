@@ -9,7 +9,9 @@ import java.time.LocalDateTime;
 @Data
 @NoArgsConstructor
 public class Collect {
+
+    private Long id;
     private Long userId;
     private Long productId;
-    private LocalDateTime time;
+    private LocalDateTime createTime;
 }

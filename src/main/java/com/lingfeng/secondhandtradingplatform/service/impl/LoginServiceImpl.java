@@ -2,7 +2,6 @@ package com.lingfeng.secondhandtradingplatform.service.impl;
 
 import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.core.bean.BeanUtil;
-import cn.hutool.core.lang.UUID;
 import cn.hutool.core.util.RandomUtil;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.lingfeng.secondhandtradingplatform.DTO.Result;
@@ -19,7 +18,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static com.lingfeng.secondhandtradingplatform.constant.RedisConstant.*;
+import static com.lingfeng.secondhandtradingplatform.constant.SystemConstant.*;
 
 @Slf4j
 @Service
@@ -94,8 +93,10 @@ public class LoginServiceImpl extends ServiceImpl<UserMapper,User> implements Lo
         //发送验证码
         log.info("发送验证码请求:phone={}",phone);
 
+        //防刷
         String limitKey = LOGIN_LIMIT_KEY + phone;
         Long count = stringRedisTemplate.opsForValue().increment(limitKey);
+
         if(count == 1){
             stringRedisTemplate.expire(limitKey,LOGIN_LIMIT_TTL,TimeUnit.MINUTES);
         }else if(count > 1){

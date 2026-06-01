@@ -24,7 +24,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.File;
 import java.io.IOException;
 
-import static com.lingfeng.secondhandtradingplatform.constant.RedisConstant.*;
+import static com.lingfeng.secondhandtradingplatform.constant.SystemConstant.*;
 
 @Service
 @Slf4j
@@ -38,13 +38,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper,User> implements Use
     private String uploadPath; // 例如: /uploads/avatars/
 
     @Autowired
-    private UserMapper userMapper;
-
-    @Autowired
     private UserConverter userConverter;
 
     //查询用户
-    //TODO:区分返回自己信息和他人信息
     @Override
     public Result<UserDetailResponse> getByUserId(Long userId) {
 
@@ -54,7 +50,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper,User> implements Use
         User user = query().eq("id",userId).one();
 
         //判断user是否存在
-        if(user == null){
+        if(user == null) {
             log.warn("获取用户信息失败:用户不存在,userId={}",userId);
             return Result.error(404,"用户不存在");
         }
@@ -302,5 +298,4 @@ public class UserServiceImpl extends ServiceImpl<UserMapper,User> implements Use
         log.info("用户注册成功:phone={}",phone);
         return Result.success(token);
     }
-
 }

@@ -25,8 +25,8 @@ public class GetMyListByStatusRequest {
     private Integer pageSize = 10;
 
     @Schema(description = "订单状态",defaultValue = "1",example = "1")
-    @Min(value = 1,message = "商品状态最小为1")
-    @Max(value = 6,message = "商品状态最大为6")
+    @Min(value = 0,message = "商品状态最小为1")
+    @Max(value = 5,message = "商品状态最大为6")
     @NotNull
     private Integer status;
 }

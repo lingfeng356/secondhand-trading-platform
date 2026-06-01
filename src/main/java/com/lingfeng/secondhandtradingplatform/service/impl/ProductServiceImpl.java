@@ -1,6 +1,5 @@
 package com.lingfeng.secondhandtradingplatform.service.impl;
 
-import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -21,6 +20,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -31,10 +31,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static com.lingfeng.secondhandtradingplatform.constant.RedisConstant.*;
+import static com.lingfeng.secondhandtradingplatform.constant.SystemConstant.*;
 
 @Slf4j
 @Service
+@Transactional(rollbackFor = Exception.class)
 public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> implements ProductService {
 
     @Autowired
@@ -75,7 +76,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         Product product = productConverter.toEntity(ppr);
 
         //存数据库
-        product.setStatus(1);
+        product.setStatus(PRODUCT_STATUS_ONSALE);
         product.setUserId(userId);
         save(product);
 
@@ -91,8 +92,12 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
                 productMap.put(entry.getKey(), String.valueOf(entry.getValue()));
             }
         }
-        stringRedisTemplate.opsForHash().putAll(key,productMap);
-        stringRedisTemplate.expire(key,PRODUCT_TTL, TimeUnit.MINUTES);
+        try {
+            stringRedisTemplate.opsForHash().putAll(key,productMap);
+            stringRedisTemplate.expire(key,PRODUCT_TTL, TimeUnit.MINUTES);
+        } catch (Exception e) {
+            log.warn("缓存redis失败:未知原因,不影响主流程");
+        }
 
         //返回结果
         log.info("发布商品成功:userId={},ProductId={}",userId,productId);
@@ -105,12 +110,6 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
     public Result<ProductDetailResponse> productDetail(Long productId) {
 
         log.info("查询商品请求:productId={}",productId);
-
-        Long userId = null;
-
-        if(StpUtil.isLogin()){
-            userId = StpUtil.getLoginIdAsLong();
-        }
 
         //校验id
         if(productId == null || productId <= 0){
@@ -222,8 +221,12 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         pct.setId(productId);
         updateById(pct);
 
-        //删除redis缓存
-        stringRedisTemplate.delete(PRODUCT_KEY + productId);
+        try {
+            //删除redis缓存
+            stringRedisTemplate.delete(PRODUCT_KEY + productId);
+        } catch (Exception e) {
+            log.warn("删除redis失败:未知原因,不影响主流程");
+        }
 
         //返回成功信息
         log.info("编辑商品成功:userId={},productId={}",userId,productId);
@@ -251,7 +254,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
             return Result.error(404,"商品不存在");
         }
 
-        if(product.getStatus() != 1){
+        if(!product.getStatus().equals(PRODUCT_STATUS_ONSALE)){
             log.warn("下架商品失败:商品当前状态无法修改,userId={},productId={}",userId,productId);
             return Result.error(400,"商品当前状态无法修改");
         }
@@ -265,13 +268,17 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
 
         //数据库查询商品
         //不为null则修改status
-        product.setStatus(3);
+        product.setStatus(PRODUCT_STATUS_OFFSALE);
 
         //将修改后的商品保存到数据库
         updateById(product);
 
-        //删除redis缓存
-        stringRedisTemplate.delete(PRODUCT_KEY + productId);
+        try {
+            //删除redis缓存
+            stringRedisTemplate.delete(PRODUCT_KEY + productId);
+        } catch (Exception e) {
+            log.warn("删除redis失败:未知原因,不影响主流程");
+        }
 
         //返回结果
         log.info("下架商品成功:userId={},productId={}",userId,productId);
@@ -309,8 +316,12 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         //删除商品
         removeById(product);
 
-        //删除redis缓存
-        stringRedisTemplate.delete(PRODUCT_KEY + productId);
+        try {
+            //删除redis缓存
+            stringRedisTemplate.delete(PRODUCT_KEY + productId);
+        } catch (Exception e) {
+            log.warn("删除redis失败:未知原因,不影响主流程");
+        }
 
         //返回结果
         log.info("删除商品成功:userId={},productId={}",userId,productId);
@@ -338,7 +349,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
             return Result.error(404,"商品不存在");
         }
 
-        if(product.getStatus() != 3){
+        if(!product.getStatus().equals(PRODUCT_STATUS_OFFSALE)){
             log.warn("重新上架商品失败:商品当前状态无法修改,userId={},productId={}",userId,productId);
             return Result.error(400,"商品当前状态无法修改");
         }
@@ -352,13 +363,17 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
 
         //数据库查询商品
         //不为null则修改status
-        product.setStatus(1);
+        product.setStatus(PRODUCT_STATUS_ONSALE);
 
         //将修改后的商品保存到数据库
         updateById(product);
 
-        //删除redis缓存
-        stringRedisTemplate.delete(PRODUCT_KEY + productId);
+        try {
+            //删除redis缓存
+            stringRedisTemplate.delete(PRODUCT_KEY + productId);
+        } catch (Exception e) {
+            log.warn("删除redis失败:未知原因,不影响主流程");
+        }
 
         //返回结果
         log.info("重新上架商品成功:userId={},productId={}",userId,productId);
@@ -418,7 +433,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         }
 
         //过滤掉非上架状态的商品
-        wrapper.eq(Product::getStatus,1);
+        wrapper.eq(Product::getStatus,PRODUCT_STATUS_ONSALE);
 
         //搜索栏模糊查询
         if(StringUtils.hasText(productListRequest.getTitle())){
@@ -456,7 +471,6 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
     }
 
     //根据热度推荐首页商品
-    //TODO：添加缓存降低DB压力
     @Override
     public Result<IPage<Product>> recommendProducts(PageRequest pageRequest) {
 
@@ -465,14 +479,33 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         Integer pageNum = pageRequest.getPageNum();
         Integer pageSize = pageRequest.getPageSize();
 
+        String cacheKey = PRODUCT_HOT_LIST + ":" + pageNum + ":" + pageSize;
+
+        String cacheJson = stringRedisTemplate.opsForValue().get(cacheKey);
+        if(StringUtils.hasText(cacheJson)){
+            //反序列化
+            @SuppressWarnings("unchecked")
+            Page<Product> cachePage = (Page<Product>) JSONUtil.toBean(cacheJson,Page.class);
+            log.info("推荐首页商品成功");
+            return Result.success(cachePage);
+        }
+
         Page<Product> page = new Page<>(pageNum,pageSize);
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Product::getStatus,1)
+        wrapper.eq(Product::getStatus,PRODUCT_STATUS_ONSALE)
                 .orderByDesc(Product::getViewCount)   // 浏览量
                 .orderByDesc(Product::getLikeCount)   // 点赞量
                 .orderByDesc(Product::getCreateTime); // 最新
 
         page(page,wrapper);
+
+        try {
+            //转成json格式存入redis缓存
+            String jsonData = JSONUtil.toJsonStr(page);
+            stringRedisTemplate.opsForValue().set(cacheKey,jsonData,PRODUCT_HOT_LIST_TTL,TimeUnit.SECONDS);
+        } catch (Exception e) {
+            log.warn("写入缓存失败:未知原因");
+        }
 
         log.info("推荐首页商品成功");
         return Result.success(page);
@@ -498,6 +531,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
 
         wrapper.eq(Product::getCategory,category)
+                .eq(Product::getStatus,PRODUCT_STATUS_ONSALE)
                 .orderByAsc(Product::getCreateTime);
 
         page(page,wrapper);
@@ -662,7 +696,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
             collect.setProductId(productId);
             collect.setUserId(userId);
             LocalDateTime time = LocalDateTime.now();
-            collect.setTime(time);
+            collect.setCreateTime(time);
 
             //存数据库
             collectMapper.insert(collect);
@@ -766,7 +800,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         Page<Product> page = new Page<>(pageNum,pageSize);
 
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
-        wrapper.inSql(Product::getId,"select product_id from collect_record where user_id = " + userId + " order by time desc");
+        wrapper.inSql(Product::getId,"select product_id from collect where user_id = " + userId + " order by create_time desc");
 
         productMapper.selectPage(page,wrapper);
 
@@ -800,7 +834,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
 
         //订单状态校验
         Integer status = order.getStatus();
-        if(status != 4){
+        if(!status.equals(ORDER_STATUS_COMPLETED)){
             log.warn("发布评价失败:订单未完成,userId={}.productId={}",userId,productId);
             return Result.error(400,"订单未完成");
         }

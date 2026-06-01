@@ -28,7 +28,7 @@ public class Order {
 
     private BigDecimal payAmount;
 
-    //| 1-待付款 | 2-待发货 | 3-待收货 | 4-已完成 | 5-已取消 | 6-已退款 |
+        //| 0-待付款 | 1-待发货 | 2-待收货 | 3-已完成 | 4-已取消 | 5-已退款 |
     private Integer status;
 
     private Integer payType;

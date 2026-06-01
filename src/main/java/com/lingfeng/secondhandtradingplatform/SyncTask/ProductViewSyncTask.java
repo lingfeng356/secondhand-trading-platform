@@ -24,7 +24,7 @@ public class ProductViewSyncTask {
     //定时更新浏览量
     @Scheduled(fixedDelay = 10000)
     public void syncViewCounts(){
-        log.debug("开始同步浏览量到数据库");
+        log.info("开始同步浏览量到数据库");
 
         Set<String> keys = stringRedisTemplate.keys("product:view:*");
 
@@ -47,7 +47,7 @@ public class ProductViewSyncTask {
                 int updated = productMapper.batchIncrementViewCount(productId,incrementCount);
 
                 if(updated > 0){
-                    log.debug("商品{}浏览量+{},同步成功",productId,incrementCount);
+                    log.info("商品{}浏览量+{},同步成功",productId,incrementCount);
                     //同步成功后删除redis
                     stringRedisTemplate.delete(key);
                 }else{
@@ -57,7 +57,7 @@ public class ProductViewSyncTask {
                 }
             }
 
-            log.debug("浏览量同步完成");
+            log.info("浏览量同步完成");
         }
     }
 
@@ -65,7 +65,7 @@ public class ProductViewSyncTask {
     //定时更新点赞量
     @Scheduled(fixedDelay = 10000)
     public void syncLikeCounts(){
-        log.debug("开始同步点赞量到数据库");
+        log.info("开始同步点赞量到数据库");
 
         Set<String> keys = stringRedisTemplate.keys("product:like:*");
 
@@ -83,7 +83,7 @@ public class ProductViewSyncTask {
                 int updated = productMapper.batchIncrementLikeCount(productId, incrementCount);
 
                 if (updated > 0) {
-                    log.debug("商品{}点赞量+{},同步成功", productId, incrementCount);
+                    log.info("商品{}点赞量+{},同步成功", productId, incrementCount);
                 } else {
                     log.error("商品{}不存在,点赞量同步失败", productId);
                 }
@@ -93,6 +93,8 @@ public class ProductViewSyncTask {
             if (newIncrementCount == 0){
                 stringRedisTemplate.delete(key);
             }
+
+            log.info("点赞量同步完成");
         }
     }
 }

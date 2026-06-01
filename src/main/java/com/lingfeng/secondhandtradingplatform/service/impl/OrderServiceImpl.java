@@ -20,6 +20,8 @@ import com.lingfeng.secondhandtradingplatform.pojo.Product;
 import com.lingfeng.secondhandtradingplatform.pojo.User;
 import com.lingfeng.secondhandtradingplatform.service.OrderService;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -30,8 +32,9 @@ import java.util.List;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.concurrent.TimeUnit;
 
-import static com.lingfeng.secondhandtradingplatform.constant.RedisConstant.*;
+import static com.lingfeng.secondhandtradingplatform.constant.SystemConstant.*;
 
 @Slf4j
 @Service
@@ -40,6 +43,9 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
     @Autowired
     private ProductMapper productMapper;
+
+    @Autowired
+    private RedissonClient redissonClient;
 
     @Autowired
     private OrderItemMapper orderItemMapper;
@@ -76,15 +82,9 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             return Result.error(404,"商品不存在");
         }
 
-        //判断商品数量是否足够
-        if(quantity > product.getStock()){
-            log.warn("创建订单失败:商品库存不足,userId={},productId={}",userId,productId);
-            return Result.error(404,"商品库存不足");
-        }
-
         //校验商品状态
         Integer status = product.getStatus();
-        if(status != 1){
+        if(!status.equals(PRODUCT_STATUS_ONSALE)){
             log.info("创建订单失败:商品状态无效,userId={},productId={}",userId,productId);
             return Result.error(400,"商品状态无效");
         }
@@ -95,55 +95,75 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             return Result.error(403,"无权限");
         }
 
-        //计算订单金额
-        BigDecimal price = product.getPrice().multiply(BigDecimal.valueOf(quantity));
+        String lockKey = ORDER_LOCK_KEY + productId;
+        RLock lock = redissonClient.getLock(lockKey);
 
-        //生成订单编号(时间戳加随机数)
-        String orderNo = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS"))
-                + RandomUtil.randomNumbers(4);
+        try{
+            if(lock.tryLock(ORDER_LOCK_TTL,ORDER_LOCK_AUTO_TTL, TimeUnit.SECONDS)){
+                //业务逻辑
+                //查库存扣库存
+                Product lastestProduct = productMapper.selectById(productId);
 
-        //保存订单到数据库
-        Order order = new Order();
-        order.setUserId(userId);
-        order.setSellerId(product.getUserId());
-        order.setOrderNo(orderNo);
-        order.setPayAmount(price);
-        order.setTotalAmount(price);
-        order.setStatus(1);
-        save(order);
+                //判断商品数量是否足够
+                if(quantity > lastestProduct.getStock()){
+                    log.warn("创建订单失败:商品库存不足,userId={},productId={}",userId,productId);
+                    return Result.error(404,"商品库存不足");
+                }
 
-        //保存订单商品表
-        OrderItem orderItem = new OrderItem();
-        orderItem.setOrderId(order.getOrderId());
-        orderItem.setProductId(productId);
-        orderItem.setProductName(product.getTitle());
-        orderItem.setProductImage(product.getImages());
-        orderItem.setAmount(order.getPayAmount());
-        orderItem.setPrice(order.getPayAmount());
-        orderItem.setQuantity(quantity);
-        orderItemMapper.insert(orderItem);
+                lastestProduct.setStock(lastestProduct.getStock() - quantity);
 
-        //更新商品状态
-        int oldStock = product.getStock();
-        int updated = productMapper.updateProductStock(productId,quantity,oldStock);
+                //如果库存刚好买完，改为下架
+                if(lastestProduct.getStock() == 0){
+                    lastestProduct.setStatus(PRODUCT_STATUS_SOLDOUT);
+                }
 
-        if(updated == 0){
-            log.error("创建订单失败:订单库存不足,productId={}",productId);
-            return Result.error(404,"商品库存不足");
+                productMapper.updateProductStockAndStatus(productId,lastestProduct.getStock(),lastestProduct.getStatus());
+
+                //删除redis缓存
+                stringRedisTemplate.delete(PRODUCT_KEY + productId);
+
+                //计算订单金额
+                BigDecimal price = lastestProduct.getPrice().multiply(BigDecimal.valueOf(quantity));
+
+                //生成订单编号(时间戳加随机数)
+                String orderNo = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS"))
+                        + RandomUtil.randomNumbers(4);
+
+                //保存订单到数据库
+                Order order = new Order();
+                order.setUserId(userId);
+                order.setSellerId(lastestProduct.getUserId());
+                order.setOrderNo(orderNo);
+                order.setPayAmount(price);
+                order.setTotalAmount(price);
+                order.setStatus(ORDER_STATUS_PENDING);
+                save(order);
+
+                //保存订单商品表
+                OrderItem orderItem = new OrderItem();
+                orderItem.setOrderId(order.getOrderId());
+                orderItem.setProductId(productId);
+                orderItem.setProductName(lastestProduct.getTitle());
+                orderItem.setProductImage(lastestProduct.getImages());
+                orderItem.setAmount(order.getPayAmount());
+                orderItem.setPrice(lastestProduct.getPrice());
+                orderItem.setQuantity(quantity);
+                orderItemMapper.insert(orderItem);
+
+            }else{
+                log.warn("获取锁失败: productId={}", productId);
+                return Result.error(500, "系统繁忙，请稍后重试");
+            }
+        } catch (InterruptedException e) {
+            log.warn("加锁失败: productId={}", productId);
+            return Result.error(500, "系统繁忙，请稍后重试");
+        } finally {
+            if(lock.isHeldByCurrentThread()){
+                lock.unlock();
+            }
         }
 
-        product.setStock(oldStock - quantity);
-
-        if(product.getStock() == 0){
-            product.setStatus(2);
-            productMapper.updateById(product);
-        }
-
-        stringRedisTemplate.delete(PRODUCT_KEY + productId);
-
-        //返回信息
-        String orderId = order.getOrderId();
-        log.info("创建订单成功:userId={},productId={},orderId={}",userId,productId,orderId);
+        log.info("创建订单成功:userId={},productId={}",userId,productId);
         return Result.success();
     }
 
@@ -205,7 +225,10 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
         //校验订单状态是否能够合法操作
         Integer status = order.getStatus();
-        if(status == 3 || status == 4 || status == 5 || status == 6){
+        if(status.equals(ORDER_STATUS_SHIPPED)
+                || status.equals(ORDER_STATUS_COMPLETED)
+                || status.equals(ORDER_STATUS_CANCELLED)
+                || status.equals(ORDER_STATUS_REFUNDED)){
             log.warn("取消订单失败:当前订单状态无法取消,userId={},orderId={}",userId,orderId);
             return Result.error(400,"当前订单状态无法取消");
         }
@@ -218,14 +241,14 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         }
 
         //修改订单状态
-        order.setStatus(5);
+        order.setStatus(ORDER_STATUS_CANCELLED);
 
         //商品状态恢复
         List<OrderItem> orderItem = orderItemMapper.selectByOrderId(orderId);
         for(OrderItem oi:orderItem){
             Long productId = oi.getProductId();
             Product product = productMapper.selectById(productId);
-            product.setStatus(1);
+            product.setStatus(PRODUCT_STATUS_ONSALE);
             //更新数据库
             productMapper.updateById(product);
             //删除redis缓存
@@ -255,7 +278,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
         //校验订单状态是否能够合法操作
         Integer status = order.getStatus();
-        if(status != 1){
+        if(!status.equals(ORDER_STATUS_PENDING)){
             log.warn("支付订单失败:当前订单状态无法支付,userId={},orderId={}",userId,orderId);
             return Result.error(400,"当前订单状态无法支付");
         }
@@ -269,11 +292,11 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
         //支付订单
         //更改订单状态
-        order.setStatus(2);
+        order.setStatus(ORDER_STATUS_PROCESSING);
         order.setPayTime(LocalDateTime.now());
 
         //默认支付方式为微信支付
-        order.setPayType(1);
+        order.setPayType(PAY_BY_WECHAT);
 
         //更新数据库
         updateById(order);
@@ -298,7 +321,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
         //校验订单状态是否能够合法操作
         Integer status = order.getStatus();
-        if(status != 2 && status != 3){
+        if(!status.equals(ORDER_STATUS_PROCESSING) && !status.equals(ORDER_STATUS_SHIPPED)){
             log.warn("退款订单失败:当前订单状态无法退款,userId={},orderId={}",userId,orderId);
             return Result.error(400,"当前订单状态无法退款");
         }
@@ -311,14 +334,14 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         }
 
         //修改订单状态
-        order.setStatus(6);
+        order.setStatus(ORDER_STATUS_REFUNDED);
 
         //商品状态恢复
         List<OrderItem> orderItem = orderItemMapper.selectByOrderId(orderId);
         for(OrderItem oi:orderItem){
             Long productId = oi.getProductId();
             Product product = productMapper.selectById(productId);
-            product.setStatus(1);
+            product.setStatus(PRODUCT_STATUS_ONSALE);
             //更新数据库
             productMapper.updateById(product);
             //删除redis缓存
@@ -348,7 +371,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
         //校验订单状态是否能够合法操作
         Integer status = order.getStatus();
-        if(status != 3){
+        if(!status.equals(ORDER_STATUS_SHIPPED)){
             log.warn("确认收货失败:当前订单状态无法收货,userId={},orderId={}",userId,orderId);
             return Result.error(400,"当前订单状态无法收货");
         }
@@ -361,7 +384,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         }
 
         //修改订单状态
-        order.setStatus(4);
+        order.setStatus(ORDER_STATUS_COMPLETED);
 
         //更新数据库
         updateById(order);
@@ -386,7 +409,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
         //校验订单状态是否能够合法操作
         Integer status = order.getStatus();
-        if(status != 2){
+        if(!status.equals(ORDER_STATUS_PROCESSING)){
             log.warn("卖家发货失败:当前订单状态无法发货,userId={},orderId={}",userId,orderId);
             return Result.error(400,"当前订单状态无法发货");
         }
@@ -399,7 +422,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         }
 
         //修改订单状态
-        order.setStatus(3);
+        order.setStatus(ORDER_STATUS_SHIPPED);
 
         //更新数据库
         updateById(order);
@@ -534,7 +557,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
         //判断order是否取消或者完成或者已退款，如果符合，则删除，不符合，报错
         Integer status = order.getStatus();
-        if(status != 4 && status != 5 && status != 6){
+        if(!status.equals(ORDER_STATUS_COMPLETED) && !status.equals(ORDER_STATUS_CANCELLED) && !status.equals(ORDER_STATUS_REFUNDED)){
             log.warn("删除订单失败:订单当前状态无法删除,userId={},orderId={}",userId,orderId);
             return Result.error(400,"订单当前状态无法删除");
         }

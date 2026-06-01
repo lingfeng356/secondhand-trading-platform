@@ -227,7 +227,7 @@ public class ProductController {
     //显示评价列表
     @PostMapping("/showReviewList/{productId}")
     @Operation(summary = "显示评价")
-    public Result<Page<Review>> showReviewList(@PathParam("productId") Long productId,
+    public Result<Page<Review>> showReviewList(@PathVariable("productId") Long productId,
                                                @RequestBody PageRequest pageRequest){
         Long userId = StpUtil.getLoginIdAsLong();
         return productService.showReviewList(userId,productId,pageRequest);

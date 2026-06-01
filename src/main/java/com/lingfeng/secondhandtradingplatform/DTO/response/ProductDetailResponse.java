@@ -69,5 +69,5 @@ public class ProductDetailResponse {
     private Integer stock;
 
     @Schema(description = "商品收藏量")
-    private Integer collectStock;
+    private Integer collectCount;
 }

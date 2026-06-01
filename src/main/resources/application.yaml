@@ -41,3 +41,12 @@ server:
 upload:
   # 头像存储路径，根据你的系统改成合适的位置，如 Linux 下的 /var/uploads/avatars/
   path: D:\\DevProjects\\static
+
+sa-token:
+  token-name: token
+  timeout: 2592000
+  active-timeout: -1
+  is-concurrent: true
+  is-share: true
+  token-style: uuid
+  is-log: false

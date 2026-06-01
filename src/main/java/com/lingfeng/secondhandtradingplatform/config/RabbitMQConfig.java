@@ -4,6 +4,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
+import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -41,6 +43,9 @@ public class RabbitMQConfig {
                 log.error("消息发送失败: {}", cause);
             }
         });
+
+        //将消息转换器配置到rabbitMQ中
+        rabbitTemplate.setMessageConverter(jsonMessageConverter());
 
         return rabbitTemplate;
     }
@@ -125,6 +130,12 @@ public class RabbitMQConfig {
                 .to(orderItemExchange())
                 .with(ORDERITEM_CREATE_KEY)
                 .noargs();
+    }
+
+    //配置消息转换器
+    @Bean
+    public MessageConverter jsonMessageConverter(){
+        return new Jackson2JsonMessageConverter();
     }
 
 }
