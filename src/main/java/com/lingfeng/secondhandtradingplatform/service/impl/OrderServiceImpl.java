@@ -137,6 +137,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
                 order.setPayAmount(price);
                 order.setTotalAmount(price);
                 order.setStatus(ORDER_STATUS_PENDING);
+                order.setIsReview(ORDER_REVIEW_NO);
                 save(order);
 
                 //保存订单商品表
@@ -204,6 +205,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         response.setSellerId(seller.getId());
         response.setSellerImg(seller.getImg());
         response.setSellerName(seller.getUsername());
+        response.setIsReview(order.getIsReview());
 
         //返回信息
         log.info("查询订单成功:userId={},orderId={}",userId,orderId);

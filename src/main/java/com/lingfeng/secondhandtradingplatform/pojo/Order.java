@@ -41,4 +41,7 @@ public class Order {
 
     @TableField(exist = false)
     private List<OrderItem> orderItems;
+
+    //0未评价，1已评价
+    private Integer isReview;
 }

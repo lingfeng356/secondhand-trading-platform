@@ -35,5 +35,8 @@ public class SystemConstant {
     public static final Integer ORDER_STATUS_CANCELLED = 4;
     public static final Integer ORDER_STATUS_REFUNDED = 5;
 
+    public static final Integer ORDER_REVIEW_NO = 0;
+    public static final Integer ORDER_REVIEW_YES = 1;
+
     public static final Integer PAY_BY_WECHAT = 0;
 }

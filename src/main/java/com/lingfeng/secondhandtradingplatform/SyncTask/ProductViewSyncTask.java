@@ -61,7 +61,7 @@ public class ProductViewSyncTask {
         }
     }
 
-    //TODO:改掉keys命令
+    //TODO:改掉keys命令,去重
     //定时更新点赞量
     @Scheduled(fixedDelay = 10000)
     public void syncLikeCounts(){

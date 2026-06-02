@@ -44,4 +44,7 @@ public class OrderDetailResponse {
 
     @Schema(description = "卖家头像", example = "/img/avatar/seller.jpg")
     private String sellerImg;
+
+    @Schema(description = "评价状态",example = "0",allowableValues = {"0","1"})
+    private Integer isReview;
 }

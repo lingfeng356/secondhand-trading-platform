@@ -1,6 +1,7 @@
 package com.lingfeng.secondhandtradingplatform.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.lang.TypeReference;
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
@@ -484,8 +485,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         String cacheJson = stringRedisTemplate.opsForValue().get(cacheKey);
         if(StringUtils.hasText(cacheJson)){
             //反序列化
-            @SuppressWarnings("unchecked")
-            Page<Product> cachePage = (Page<Product>) JSONUtil.toBean(cacheJson,Page.class);
+            Page<Product> cachePage = JSONUtil.toBean(cacheJson, new TypeReference<Page<Product>>() {}, false);
             log.info("推荐首页商品成功");
             return Result.success(cachePage);
         }
@@ -807,6 +807,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         return Result.success(page);
     }
 
+    //OK
     //发布评价
     @Override
     public Result<Void> publishReview(Long userId, PublishReviewRequest request) {
@@ -873,10 +874,14 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
 
         reviewMapper.insert(review);
 
+        order.setIsReview(ORDER_REVIEW_YES);
+        orderMapper.updateById(order);
+
         log.info("发布评价成功:userId={},productId={}",userId,productId);
         return Result.success();
     }
 
+    //OK
     //删除评价
     @Override
     public Result<Void> deleteReview(Long userId, Long reviewId) {
@@ -896,10 +901,17 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
 
         reviewMapper.deleteById(reviewId);
 
+        //更改订单状态
+        String orderId = review.getOrderId();
+        Order order = orderMapper.selectById(orderId);
+        order.setIsReview(ORDER_REVIEW_NO);
+        orderMapper.updateById(order);
+
         log.info("删除评价成功:userId={},reviewId={}",userId,reviewId);
         return Result.success();
     }
 
+    //OK
     //商家回复
     @Override
     public Result<Void> replyReview(Long userId, ReplyReviewRequest request) {
@@ -935,6 +947,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         return Result.success();
     }
 
+    //OK
     //显示评价列表
     @Override
     public Result<Page<Review>> showReviewList(Long userId, Long productId, PageRequest pageRequest) {

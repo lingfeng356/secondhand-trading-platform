@@ -81,4 +81,6 @@ public class Product {
     private Integer stock;
 
     private Integer collectCount;
+
+
 }
