@@ -19,4 +19,5 @@ public class Review {
     private LocalDateTime replyTime;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
+    private Integer isDeleted;
 }

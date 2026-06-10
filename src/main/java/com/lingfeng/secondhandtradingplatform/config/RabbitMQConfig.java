@@ -20,17 +20,6 @@ public class RabbitMQConfig {
     public static final String PRODUCT_LIKES_UPDATE_QUEUE = "product.like.update.queue";
     public static final String PRODUCT_LIKES_ROUTING_KEY = "product.like.key";
 
-    //订单相关
-    public static final String ORDER_CREATE_QUEUE = "order.create.queue";
-    public static final String ORDER_EXCHANGE = "order.exchange";
-    public static final String ORDER_CREATE_KEY = "order.create.key";
-
-
-    //订单商品相关
-    public static final String ORDERITEM_CREATE_QUEUE = "orderItem.create.queue";
-    public static final String ORDERITEM_EXCHANGE = "orderItem.exchange";
-    public static final String ORDERITEM_CREATE_KEY = "orderItem.create.key";
-
     @Bean
     public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory) {
         RabbitTemplate rabbitTemplate = new RabbitTemplate(connectionFactory);
@@ -58,20 +47,6 @@ public class RabbitMQConfig {
                 .build();
     }
 
-    @Bean
-    public Exchange orderExchange(){
-        return ExchangeBuilder.topicExchange(ORDER_EXCHANGE)
-                .durable(true)
-                .build();
-    }
-
-    @Bean
-    public Exchange orderItemExchange(){
-        return ExchangeBuilder.topicExchange(ORDERITEM_EXCHANGE)
-                .durable(true)
-                .build();
-    }
-
     //声明队列
     @Bean
     public Queue productViewsQueue(){
@@ -82,18 +57,6 @@ public class RabbitMQConfig {
     public Queue productLikesQueue(){
         return QueueBuilder.durable(PRODUCT_LIKES_UPDATE_QUEUE).build();
     }
-
-
-    @Bean
-    public Queue orderCreateQueue(){
-        return QueueBuilder.durable(ORDER_CREATE_QUEUE).build();
-    }
-
-    @Bean
-    public Queue orderItemCreateQueue(){
-        return QueueBuilder.durable(ORDERITEM_CREATE_QUEUE).build();
-    }
-
 
     //绑定队列到交换机
     @Bean
@@ -111,24 +74,6 @@ public class RabbitMQConfig {
                 .bind(productLikesQueue())
                 .to(productExchange())
                 .with(PRODUCT_LIKES_ROUTING_KEY)
-                .noargs();
-    }
-
-    @Bean
-    public Binding orderCreateBinding(){
-        return BindingBuilder
-                .bind(orderCreateQueue())
-                .to(orderExchange())
-                .with(ORDER_CREATE_KEY)
-                .noargs();
-    }
-
-    @Bean
-    public Binding orderItemCreateBinding(){
-        return BindingBuilder
-                .bind(orderItemCreateQueue())
-                .to(orderItemExchange())
-                .with(ORDERITEM_CREATE_KEY)
                 .noargs();
     }
 

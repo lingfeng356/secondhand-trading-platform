@@ -12,11 +12,10 @@ import com.lingfeng.secondhandtradingplatform.pojo.Product;
 import com.lingfeng.secondhandtradingplatform.pojo.Review;
 import com.lingfeng.secondhandtradingplatform.service.ProductService;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.websocket.server.PathParam;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -31,15 +30,17 @@ public class ProductController {
     @Autowired
     private ProductService productService;
 
+    //OK
     //发布商品
     @PostMapping("/publishProduct")
     @Operation(summary = "发布商品")
     @SaCheckLogin
-    public Result<Void> publishProduct(@RequestBody ProductPublishRequest ppr){
+    public Result<Void> publishProduct(@Valid @RequestBody ProductPublishRequest ppr){
         Long userId = StpUtil.getLoginIdAsLong();
         return productService.publishProduct(userId,ppr);
     }
 
+    //TODO：一堆问题
     //查询商品详情
     @GetMapping("/detail/{productId}")
     @Operation(summary = "查询商品详情")
@@ -48,6 +49,7 @@ public class ProductController {
         return productService.productDetail(productId);
     }
 
+    //OK
     //编辑商品信息
     @PostMapping("/update/{productId}")
     @Operation(summary = "编辑商品信息")
@@ -56,12 +58,13 @@ public class ProductController {
             @ApiResponse(responseCode = "403",description = "无修改权限")
     })
     @SaCheckLogin
-    public Result<Void> productUpdate(@RequestBody UpdateProductDetailRequest updr
+    public Result<Void> productUpdate(@Valid @RequestBody UpdateProductDetailRequest updr
                                 , @PathVariable Long productId){
         Long userId = StpUtil.getLoginIdAsLong();
         return productService.productUpdate(userId,updr,productId);
     }
 
+    //OK
     //下架商品
     @PostMapping("/remove/{productId}")
     @Operation(summary = "下架商品")
@@ -90,6 +93,7 @@ public class ProductController {
         return productService.deleteProduct(userId,productId);
     }
 
+    //OK
     //将已下架的商品重新上架
     @PostMapping("/republish/{productId}")
     @Operation(summary = "重新上架商品")
@@ -104,36 +108,40 @@ public class ProductController {
         return productService.republishProduct(userId,productId);
     }
 
+    //OK
     //我的发布商品
-    @PostMapping("/myList")
-    @Operation(summary = "查询我发布的商品")
-    @SaCheckLogin
-    public Result<IPage<Product>> showMyList(@RequestBody PageRequest pageRequest){
-        Long userId = StpUtil.getLoginIdAsLong();
-        return productService.showMyList(userId,pageRequest);
+    @PostMapping("/productList/{userId}")
+    @Operation(summary = "查询用户的发布的商品")
+    public Result<IPage<Product>> showUserProductList(@Valid @RequestBody PageRequest pageRequest,
+                                                      @PathVariable Long userId){
+        return productService.showUserProductList(userId,pageRequest);
     }
 
+    //TODO:换es
     //根据搜索展示商品列表,分页，排序，条件查询
     @PostMapping("/list")
     @Operation(summary = "分页条件查询商品")
-    public Result<IPage<Product>> showList(@RequestBody ProductListRequest productListRequestDTO){
+    public Result<IPage<Product>> showList(@Valid @RequestBody ProductListRequest productListRequestDTO){
         return productService.showProductList(productListRequestDTO);
     }
 
+    //TODO:OK吗？
     //首页商品个性化推荐
     @PostMapping("/recommendProducts")
     @Operation(summary = "根据热度推荐首页商品")
-    public Result<IPage<Product>> recommendProducts(@RequestBody PageRequest pageRequest){
+    public Result<IPage<Product>> recommendProducts(@Valid @RequestBody PageRequest pageRequest){
         return productService.recommendProducts(pageRequest);
     }
 
+    //OK
     //根据分类展示商品列表
     @PostMapping("/showByCategory")
     @Operation(summary = "分类展示商品")
-    public Result<IPage<Product>> showByCategory(@RequestBody ShowProductByCategoryRequest request){
+    public Result<IPage<Product>> showByCategory(@Valid @RequestBody ShowProductByCategoryRequest request){
         return productService.showByCategory(request);
     }
 
+    //TODO:看不懂
     //上传商品图片
     @PostMapping("/upload/{productId}")
     @Operation(summary = "上传商品图片")
@@ -143,6 +151,7 @@ public class ProductController {
         return productService.upload(file,userId,productId);
     }
 
+    //TODO:异步处理有问题
     //点赞商品
     @PostMapping("/like/{productId}")
     @Operation(summary = "点赞商品")
@@ -152,6 +161,7 @@ public class ProductController {
         return productService.likeProduct(userId,productId);
     }
 
+    //OK
     //取消点赞
     @PostMapping("/cancelLike/{productId}")
     @Operation(summary = "取消点赞商品")
@@ -161,6 +171,7 @@ public class ProductController {
         return productService.cancelLikeProduct(userId,productId);
     }
 
+    //OK
     //检查是否已点赞
     @GetMapping("/checkIsLike/{productId}")
     @Operation(summary = "检查是否点赞")
@@ -170,6 +181,7 @@ public class ProductController {
         return productService.checkIsLike(userId,productId);
     }
 
+    //OK
     //收藏
     @PostMapping("/collectProduct/{productId}")
     @Operation(summary = "收藏商品")
@@ -179,6 +191,7 @@ public class ProductController {
         return productService.collectProduct(userId,productId);
     }
 
+    //OK
     //取消收藏
     @PostMapping("/cancelCollect/{productId}")
     @Operation(summary = "取消收藏")
@@ -188,6 +201,7 @@ public class ProductController {
         return productService.cancelCollect(userId,productId);
     }
 
+    //OK
     //是否收藏
     @GetMapping("/checkCollect/{productId}")
     @Operation(summary = "是否收藏")
@@ -197,20 +211,22 @@ public class ProductController {
         return productService.checkIsCollect(userId,productId);
     }
 
+    //OK
     //我的收藏商品
     @PostMapping("/myCollectProducts")
     @Operation(summary = "我的收藏商品")
     @SaCheckLogin
-    public Result<Page<Product>> myCollectProducts(@RequestBody PageRequest pageRequest){
+    public Result<Page<Product>> myCollectProducts(@Valid @RequestBody PageRequest pageRequest){
         Long userId = StpUtil.getLoginIdAsLong();
         return productService.myCollectProducts(userId,pageRequest);
     }
 
+    //OK
     //发布评价
     @PostMapping("/publishReview")
     @Operation(summary = "发布评价")
     @SaCheckLogin
-    public Result<Void> publishReview(@RequestBody PublishReviewRequest request){
+    public Result<Void> publishReview(@Valid @RequestBody PublishReviewRequest request){
         Long userId = StpUtil.getLoginIdAsLong();
         return productService.publishReview(userId,request);
     }
@@ -224,20 +240,22 @@ public class ProductController {
         return productService.deleteReview(userId,reviewId);
     }
 
+    //OK
     //显示评价列表
     @PostMapping("/showReviewList/{productId}")
     @Operation(summary = "显示评价")
     public Result<Page<Review>> showReviewList(@PathVariable("productId") Long productId,
-                                               @RequestBody PageRequest pageRequest){
+                                               @Valid @RequestBody PageRequest pageRequest){
         Long userId = StpUtil.getLoginIdAsLong();
         return productService.showReviewList(userId,productId,pageRequest);
     }
 
+    //OK
     //商家回复
     @PostMapping("/reply")
     @Operation(summary = "商家回复")
     @SaCheckLogin
-    public Result<Void> replyReview(@RequestBody ReplyReviewRequest request){
+    public Result<Void> replyReview(@Valid @RequestBody ReplyReviewRequest request){
         Long userId = StpUtil.getLoginIdAsLong();
         return productService.replyReview(userId,request);
     }

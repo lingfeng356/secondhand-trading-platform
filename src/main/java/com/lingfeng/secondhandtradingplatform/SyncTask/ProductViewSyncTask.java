@@ -6,11 +6,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Set;
 
 @Component
 @Slf4j
+@Transactional(rollbackFor = Exception.class)
 public class ProductViewSyncTask {
 
     @Autowired
@@ -19,8 +21,6 @@ public class ProductViewSyncTask {
     @Autowired
     private ProductMapper productMapper;
 
-
-    //TODO:改掉keys命令
     //定时更新浏览量
     @Scheduled(fixedDelay = 10000)
     public void syncViewCounts(){
@@ -56,25 +56,24 @@ public class ProductViewSyncTask {
                     stringRedisTemplate.delete(key);
                 }
             }
-
-            log.info("浏览量同步完成");
         }
+
+        log.info("浏览量同步完成");
     }
 
-    //TODO:改掉keys命令,去重
     //定时更新点赞量
     @Scheduled(fixedDelay = 10000)
     public void syncLikeCounts(){
         log.info("开始同步点赞量到数据库");
 
-        Set<String> keys = stringRedisTemplate.keys("product:like:*");
+        Set<String> keys = stringRedisTemplate.keys("product:like:count:*");
 
         if(keys.isEmpty()){
             return;
         }
 
         for(String key:keys) {
-            Long productId = Long.valueOf(key.split(":")[2]);
+            Long productId = Long.valueOf(key.split(":")[3]);
             Long incrementCountL = stringRedisTemplate.opsForSet().size(key);
 
             Integer incrementCount = incrementCountL != null ? incrementCountL.intValue() : 0;
@@ -85,16 +84,14 @@ public class ProductViewSyncTask {
                 if (updated > 0) {
                     log.info("商品{}点赞量+{},同步成功", productId, incrementCount);
                 } else {
-                    log.error("商品{}不存在,点赞量同步失败", productId);
+                    log.warn("商品{}不存在,点赞量同步失败", productId);
                 }
-            }
 
-            Long newIncrementCount = stringRedisTemplate.opsForSet().size(key);
-            if (newIncrementCount == 0){
+                //删除redis缓存
                 stringRedisTemplate.delete(key);
             }
-
-            log.info("点赞量同步完成");
         }
+
+        log.info("点赞量同步完成");
     }
 }

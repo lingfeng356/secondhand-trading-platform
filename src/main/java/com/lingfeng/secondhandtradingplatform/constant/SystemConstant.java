@@ -39,4 +39,15 @@ public class SystemConstant {
     public static final Integer ORDER_REVIEW_YES = 1;
 
     public static final Integer PAY_BY_WECHAT = 0;
+
+    public static final Integer PRODUCT_ISDELETED_YES = 1;
+    public static final Integer PRODUCT_ISDELETED_NO = 0;
+
+    public static final Integer ORDER_ISDELETED_YES = 1;
+    public static final Integer ORDER_ISDELETED_NO = 0;
+
+    public static final Integer REVIEW_ISDELETED_YES = 1;
+    public static final Integer REVIEW_ISDELETED_NO = 0;
+
+    public static final long LIKE_TTL = 10L;
 }

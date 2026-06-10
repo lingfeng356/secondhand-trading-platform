@@ -210,6 +210,12 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
             return Result.error(404,"商品不存在");
         }
 
+        //判断product是否删除
+        if(product.getIsDeleted().equals(PRODUCT_ISDELETED_YES)){
+            log.warn("编辑商品失败:商品已删除,productId={}",productId);
+            return Result.error(404,"商品已删除");
+        }
+
         Long realUserId = product.getUserId();
         if(!realUserId.equals(userId)){
             log.warn("编辑商品失败:无修改权限,userId={},productId={}",userId,productId);
@@ -253,6 +259,12 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         if(product == null){
             log.warn("下架商品失败:商品不存在,productId={}",productId);
             return Result.error(404,"商品不存在");
+        }
+
+        //判断product是否删除
+        if(product.getIsDeleted().equals(PRODUCT_ISDELETED_YES)){
+            log.warn("下架商品失败:商品已删除,productId={}",productId);
+            return Result.error(404,"商品已删除");
         }
 
         if(!product.getStatus().equals(PRODUCT_STATUS_ONSALE)){
@@ -307,6 +319,12 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
             return Result.error(404,"商品不存在");
         }
 
+        //判断product是否删除
+        if(product.getIsDeleted().equals(PRODUCT_ISDELETED_YES)){
+            log.warn("删除商品失败:商品已删除,productId={}",productId);
+            return Result.error(404,"商品已删除");
+        }
+
         //鉴权
         Long realUserId = product.getUserId();
         if(!realUserId.equals(userId)){
@@ -315,7 +333,8 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         }
 
         //删除商品
-        removeById(product);
+        product.setIsDeleted(PRODUCT_ISDELETED_YES);
+        updateById(product);
 
         try {
             //删除redis缓存
@@ -350,6 +369,12 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
             return Result.error(404,"商品不存在");
         }
 
+        //判断product是否删除
+        if(product.getIsDeleted().equals(PRODUCT_ISDELETED_YES)){
+            log.warn("重新上架商品失败:商品已删除,productId={}",productId);
+            return Result.error(404,"商品已删除");
+        }
+
         if(!product.getStatus().equals(PRODUCT_STATUS_OFFSALE)){
             log.warn("重新上架商品失败:商品当前状态无法修改,userId={},productId={}",userId,productId);
             return Result.error(400,"商品当前状态无法修改");
@@ -381,11 +406,11 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         return Result.success();
     }
 
-    //我的发布商品
+    //用户的发布商品
     @Override
-    public Result<IPage<Product>> showMyList(Long userId,PageRequest pageRequest) {
+    public Result<IPage<Product>> showUserProductList(Long userId,PageRequest pageRequest) {
 
-        log.info("查询我的发布请求:userId={}",userId);
+        log.info("查询用户发布商品请求:userId={}",userId);
 
         Integer pageNum = pageRequest.getPageNum();
         Integer pageSize = pageRequest.getPageSize();
@@ -394,6 +419,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         Page<Product> page = new Page<>(pageNum, pageSize);
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Product::getUserId, userId)
+                .eq(Product::getIsDeleted,PRODUCT_ISDELETED_NO)
                 .orderByDesc(Product::getCreateTime);
         page(page, wrapper);
 
@@ -460,7 +486,9 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
             }
         } else {
             // 默认按创建时间倒序
-            wrapper.orderByDesc(Product::getCreateTime);
+            wrapper.eq(Product::getStatus,PRODUCT_STATUS_ONSALE)
+                    .eq(Product::getIsDeleted,PRODUCT_ISDELETED_NO)
+                    .orderByDesc(Product::getCreateTime);
         }
 
         //执行分页查询
@@ -485,7 +513,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         String cacheJson = stringRedisTemplate.opsForValue().get(cacheKey);
         if(StringUtils.hasText(cacheJson)){
             //反序列化
-            Page<Product> cachePage = JSONUtil.toBean(cacheJson, new TypeReference<Page<Product>>() {}, false);
+            Page<Product> cachePage = JSONUtil.toBean(cacheJson, new TypeReference<>() {}, false);
             log.info("推荐首页商品成功");
             return Result.success(cachePage);
         }
@@ -493,6 +521,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         Page<Product> page = new Page<>(pageNum,pageSize);
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Product::getStatus,PRODUCT_STATUS_ONSALE)
+                .eq(Product::getIsDeleted,PRODUCT_ISDELETED_NO)
                 .orderByDesc(Product::getViewCount)   // 浏览量
                 .orderByDesc(Product::getLikeCount)   // 点赞量
                 .orderByDesc(Product::getCreateTime); // 最新
@@ -532,6 +561,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
 
         wrapper.eq(Product::getCategory,category)
                 .eq(Product::getStatus,PRODUCT_STATUS_ONSALE)
+                .eq(Product::getIsDeleted,PRODUCT_ISDELETED_NO)
                 .orderByAsc(Product::getCreateTime);
 
         page(page,wrapper);
@@ -670,7 +700,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
 
         Boolean isLiked = stringRedisTemplate.opsForSet().isMember(key,userId.toString());
 
-        if(!isLiked){
+        if(Boolean.FALSE.equals(isLiked)){
             log.info("检查是否点赞成功:未点赞,userId={},productId={}",userId,productId);
             return Result.success(false);
         }
@@ -680,9 +710,10 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
     }
 
     //收藏商品
-    //TODO：改定时异步更新，还有其他问题问ai
+    //TODO:有问题
     @Override
     public Result<Void> collectProduct(Long userId, Long productId) {
+
         log.info("收藏商品请求:userId={},productId={}",userId,productId);
 
         if(productId == null){
@@ -721,6 +752,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
     //取消收藏
     @Override
     public Result<Void> cancelCollect(Long userId, Long productId) {
+
         log.info("取消收藏商品请求:userId={},productId={}",userId,productId);
 
         if(productId == null){
@@ -733,23 +765,28 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         //判断是否收藏
         Boolean isCollected = stringRedisTemplate.opsForSet().isMember(key,userId.toString());
 
-        if(!isCollected){
+        if(Boolean.FALSE.equals(isCollected)){
             log.warn("取消收藏商品失败:未收藏,userId={},productId={}",userId,productId);
             return Result.error(400,"未收藏");
         }
 
-         //先删redis后删数据库
-        stringRedisTemplate.opsForSet().remove(key,userId.toString());
-
+         //先删数据库后删redis
         LambdaQueryWrapper<Collect> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Collect::getUserId,userId)
                 .eq(Collect::getProductId,productId);
         collectMapper.delete(wrapper);
 
         Product product = getById(productId);
-        Integer newCollectCount = product.getCollectCount() - 1;
+        Integer newCollectCount = product.getCollectCount() == 0 ? 0 : product.getCollectCount() - 1;
+
         product.setCollectCount(newCollectCount);
         updateById(product);
+
+        try {
+            stringRedisTemplate.opsForSet().remove(key,userId.toString());
+        } catch (Exception e) {
+            log.warn("未知错误:不影响主流程");
+        }
 
         log.info("取消收藏商品成功:userId={},productId={}",userId,productId);
         return Result.success();
@@ -769,7 +806,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         String key = PRODUCT_COLLECT_KEY + productId;
         Boolean isCollect = stringRedisTemplate.opsForSet().isMember(key,userId.toString());
 
-        if(isCollect){
+        if(Boolean.TRUE.equals(isCollect)){
             log.info("确认收藏商品请求成功:已收藏,userId={},productId={}",userId,productId);
             return Result.success(true);
         }
@@ -785,10 +822,14 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
             return Result.success(false);
         }
 
+        //存redis
+        stringRedisTemplate.opsForSet().add(key,userId.toString());
+
         log.info("确认收藏商品请求成功:已收藏,userId={},productId={}",userId,productId);
         return Result.success(true);
     }
 
+    //OK
     //查询我的收藏商品
     @Override
     public Result<Page<Product>> myCollectProducts(Long userId, PageRequest pageRequest) {
@@ -799,12 +840,9 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
 
         Page<Product> page = new Page<>(pageNum,pageSize);
 
-        LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
-        wrapper.inSql(Product::getId,"select product_id from collect where user_id = " + userId + " order by create_time desc");
+        Page<Product> result = productMapper.batchCollectByUserId(page,userId);
 
-        productMapper.selectPage(page,wrapper);
-
-        return Result.success(page);
+        return Result.success(result);
     }
 
     //OK
@@ -887,19 +925,29 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
     public Result<Void> deleteReview(Long userId, Long reviewId) {
         log.info("删除评价请求:userId={},reviewId={}",userId,reviewId);
 
+        //判断评价是否存在
         if(reviewId == null){
             log.warn("删除评价失败:评价不存在,userId={},reviewId={}",userId,reviewId);
             return Result.error(404,"评价不存在");
         }
 
-        //鉴权
         Review review = reviewMapper.selectById(reviewId);
+
+        //判断评价是否删除
+        if(review.getIsDeleted().equals(REVIEW_ISDELETED_YES)){
+            log.warn("删除评价失败:评价已删除,userId={},reviewId={}",userId,reviewId);
+            return Result.error(404,"评价已删除");
+        }
+
+        //鉴权
         if(!userId.equals(review.getUserId())){
             log.warn("删除评价失败:无权限,userId={},reviewId={}",userId,reviewId);
             return Result.error(403,"无权限");
         }
 
-        reviewMapper.deleteById(reviewId);
+        //删除评价
+        review.setIsDeleted(REVIEW_ISDELETED_YES);
+        reviewMapper.updateById(review);
 
         //更改订单状态
         String orderId = review.getOrderId();
@@ -925,13 +973,25 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
             return Result.error(404,"评价不存在");
         }
 
-        //鉴权
         Review review = reviewMapper.selectById(reviewId);
+
+        //判断评价是否删除
+        if(review.getIsDeleted().equals(REVIEW_ISDELETED_YES)){
+            log.warn("商家回复失败:评价已删除,userId={},reviewId={}",userId,reviewId);
+            return Result.error(404,"评价已删除");
+        }
+
+        //鉴权
         Long productId = review.getProductId();
         Product product = getById(productId);
         if(product == null){
             log.warn("商家回复失败:商品不存在,userId={},reviewId={}",userId,reviewId);
             return Result.error(404,"商品不存在");
+        }
+
+        if(product.getIsDeleted().equals(PRODUCT_ISDELETED_YES)){
+            log.warn("商家回复失败:商品已删除,userId={},reviewId={}",userId,reviewId);
+            return Result.error(404,"商品已删除");
         }
 
         if(!userId.equals(product.getUserId())){
@@ -953,12 +1013,24 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
     public Result<Page<Review>> showReviewList(Long userId, Long productId, PageRequest pageRequest) {
         log.info("展示评价列表:productId={}",productId);
 
+        Product product = getById(productId);
+        if(product == null){
+            log.warn("商家回复失败:商品不存在,userId={},productId={}",userId,productId);
+            return Result.error(404,"商品不存在");
+        }
+
+        if(product.getIsDeleted().equals(PRODUCT_ISDELETED_YES)){
+            log.warn("商家回复失败:商品已删除,userId={},productId={}",userId,productId);
+            return Result.error(404,"商品已删除");
+        }
+
         Integer pageNum = pageRequest.getPageNum();
         Integer pageSize = pageRequest.getPageSize();
 
         Page<Review> page = new Page<>(pageNum,pageSize);
         LambdaQueryWrapper<Review> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Review::getProductId,productId)
+                .eq(Review::getIsDeleted,REVIEW_ISDELETED_NO)
                 .orderByDesc(Review::getCreateTime);
 
         reviewMapper.selectPage(page,wrapper);

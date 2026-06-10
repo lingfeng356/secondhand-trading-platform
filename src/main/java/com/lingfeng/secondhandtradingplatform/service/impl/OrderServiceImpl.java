@@ -15,6 +15,7 @@ import com.lingfeng.secondhandtradingplatform.mapper.OrderMapper;
 import com.lingfeng.secondhandtradingplatform.mapper.ProductMapper;
 import com.lingfeng.secondhandtradingplatform.mapper.UserMapper;
 import com.lingfeng.secondhandtradingplatform.pojo.Order;
+import java.util.List;
 import com.lingfeng.secondhandtradingplatform.pojo.OrderItem;
 import com.lingfeng.secondhandtradingplatform.pojo.Product;
 import com.lingfeng.secondhandtradingplatform.pojo.User;
@@ -27,12 +28,13 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static com.lingfeng.secondhandtradingplatform.constant.SystemConstant.*;
 
@@ -80,6 +82,12 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         if(product == null){
             log.warn("创建订单失败:商品不存在,userId={},productId={}",userId,productId);
             return Result.error(404,"商品不存在");
+        }
+
+        //判断product是否删除
+        if(product.getIsDeleted().equals(PRODUCT_ISDELETED_YES)){
+            log.warn("创建订单失败:商品已删除,userId={},productId={}",userId,productId);
+            return Result.error(404,"商品已删除");
         }
 
         //校验商品状态
@@ -150,7 +158,6 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
                 orderItem.setPrice(lastestProduct.getPrice());
                 orderItem.setQuantity(quantity);
                 orderItemMapper.insert(orderItem);
-
             }else{
                 log.warn("获取锁失败: productId={}", productId);
                 return Result.error(500, "系统繁忙，请稍后重试");
@@ -181,6 +188,12 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             return Result.error(404,"订单不存在");
         }
 
+        //检查订单是否删除
+        if(order.getIsDeleted().equals(ORDER_ISDELETED_YES)){
+            log.warn("查看订单失败:订单已删除,userId={},orderId={}",userId,orderId);
+            return Result.error(404,"订单已删除");
+        }
+
         //校验订单是否为该用户的订单
         Long rUserId = order.getUserId();
         Long rSellerId = order.getSellerId();
@@ -191,7 +204,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
         //查询订单商品信息
         OrderDetailResponse response = orderConverter.toOrderDetailResponse(order);
-        List<OrderItem> items = orderItemMapper.selectByOrderId(orderId);
+        OrderItem orderItem = orderItemMapper.selectByOrderId(orderId);
 
         //卖家判空
         User seller = userMapper.selectById(rSellerId);
@@ -201,7 +214,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         }
 
         //将订单和商品信息存入响应
-        response.setItems(items);
+        response.setOrderItem(orderItem);
         response.setSellerId(seller.getId());
         response.setSellerImg(seller.getImg());
         response.setSellerName(seller.getUsername());
@@ -225,6 +238,12 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             return Result.error(404,"订单不存在");
         }
 
+        //检查订单是否删除
+        if(order.getIsDeleted().equals(ORDER_ISDELETED_YES)){
+            log.warn("取消订单失败:订单已删除,userId={},orderId={}",userId,orderId);
+            return Result.error(404,"订单已删除");
+        }
+
         //校验订单状态是否能够合法操作
         Integer status = order.getStatus();
         if(status.equals(ORDER_STATUS_SHIPPED)
@@ -244,18 +263,23 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
         //修改订单状态
         order.setStatus(ORDER_STATUS_CANCELLED);
+        OrderItem orderItem = orderItemMapper.selectByOrderId(orderId);
+
+        //判断订单商品是否存在
+        if(orderItem == null){
+            log.warn("取消订单失败:商品不存在,userId={},orderId={}",userId,orderId);
+            return Result.error(403,"商品不存在");
+        }
 
         //商品状态恢复
-        List<OrderItem> orderItem = orderItemMapper.selectByOrderId(orderId);
-        for(OrderItem oi:orderItem){
-            Long productId = oi.getProductId();
-            Product product = productMapper.selectById(productId);
-            product.setStatus(PRODUCT_STATUS_ONSALE);
-            //更新数据库
-            productMapper.updateById(product);
-            //删除redis缓存
-            stringRedisTemplate.delete(PRODUCT_KEY + productId);
-        }
+        Long productId = orderItem.getProductId();
+        Product product = productMapper.selectById(productId);
+        product.setStock(product.getStock() + orderItem.getQuantity());
+        product.setStatus(PRODUCT_STATUS_ONSALE);
+        //更新数据库
+        productMapper.updateById(product);
+        //删除redis缓存
+        stringRedisTemplate.delete(PRODUCT_KEY + productId);
 
         //更新数据库
         updateById(order);
@@ -276,6 +300,12 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         if (order == null) {
             log.warn("支付订单失败:userId={},orderId={}",userId,orderId);
             return Result.error(404,"订单不存在");
+        }
+
+        //检查订单是否删除
+        if(order.getIsDeleted().equals(ORDER_ISDELETED_YES)){
+            log.warn("支付订单失败:订单已删除,userId={},orderId={}",userId,orderId);
+            return Result.error(404,"订单已删除");
         }
 
         //校验订单状态是否能够合法操作
@@ -321,6 +351,12 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             return Result.error(404, "订单不存在");
         }
 
+        //检查订单是否删除
+        if(order.getIsDeleted().equals(ORDER_ISDELETED_YES)){
+            log.warn("退款订单失败:订单已删除,userId={},orderId={}",userId,orderId);
+            return Result.error(404,"订单已删除");
+        }
+
         //校验订单状态是否能够合法操作
         Integer status = order.getStatus();
         if(!status.equals(ORDER_STATUS_PROCESSING) && !status.equals(ORDER_STATUS_SHIPPED)){
@@ -337,18 +373,23 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
         //修改订单状态
         order.setStatus(ORDER_STATUS_REFUNDED);
+        OrderItem orderItem = orderItemMapper.selectByOrderId(orderId);
+
+        //判断订单商品是否存在
+        if(orderItem == null){
+            log.warn("取消订单失败:商品不存在,userId={},orderId={}",userId,orderId);
+            return Result.error(403,"商品不存在");
+        }
 
         //商品状态恢复
-        List<OrderItem> orderItem = orderItemMapper.selectByOrderId(orderId);
-        for(OrderItem oi:orderItem){
-            Long productId = oi.getProductId();
-            Product product = productMapper.selectById(productId);
-            product.setStatus(PRODUCT_STATUS_ONSALE);
-            //更新数据库
-            productMapper.updateById(product);
-            //删除redis缓存
-            stringRedisTemplate.delete(PRODUCT_KEY + productId);
-        }
+        Long productId = orderItem.getProductId();
+        Product product = productMapper.selectById(productId);
+        product.setStock(product.getStock() + orderItem.getQuantity());
+        product.setStatus(PRODUCT_STATUS_ONSALE);
+        //更新数据库
+        productMapper.updateById(product);
+        //删除redis缓存
+        stringRedisTemplate.delete(PRODUCT_KEY + productId);
 
         //更新数据库
         updateById(order);
@@ -369,6 +410,12 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         if (order == null) {
             log.warn("确认收货失败:userId={},orderId={}", userId, orderId);
             return Result.error(404, "订单不存在");
+        }
+
+        //检查订单是否删除
+        if(order.getIsDeleted().equals(ORDER_ISDELETED_YES)){
+            log.warn("确认收货失败:订单已删除,userId={},orderId={}",userId,orderId);
+            return Result.error(404,"订单已删除");
         }
 
         //校验订单状态是否能够合法操作
@@ -407,6 +454,12 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         if (order == null) {
             log.warn("卖家发货失败:userId={},orderId={}", userId, orderId);
             return Result.error(404, "订单不存在");
+        }
+
+        //检查订单是否删除
+        if(order.getIsDeleted().equals(ORDER_ISDELETED_YES)){
+            log.warn("卖家发货失败:订单已删除,userId={},orderId={}",userId,orderId);
+            return Result.error(404,"订单已删除");
         }
 
         //校验订单状态是否能够合法操作
@@ -449,18 +502,38 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         wrapper.eq(Order::getUserId, userId)
                 .or()
                 .eq(Order::getSellerId, userId);
-        wrapper.orderByDesc(Order::getCreateTime);  // 单独一行，不要链上去
+        wrapper.eq(Order::getIsDeleted,ORDER_ISDELETED_NO)
+                .orderByDesc(Order::getCreateTime);  // 单独一行，不要链上去
 
         //开始查询
         page(page,wrapper);
 
-        //查询买到的订单商品
-        //TODO：可以优化成一次联表查询，效率提升十倍
-        for(Order order:page.getRecords()){
-            List<OrderItem> orderItems = orderItemMapper.selectList(
-                    new LambdaQueryWrapper<OrderItem>().eq(OrderItem::getOrderId,order.getOrderId())
-            );
-            order.setOrderItems(orderItems);
+        //先查询所有orderId
+        List<String> orderIds = page.getRecords()
+                                .stream()
+                                .map(Order::getOrderId)
+                                .collect(Collectors.toList());
+
+        //判空
+        if(orderIds.isEmpty()){
+            log.info("查询订单列表失败:订单列表为空,userId={}",userId);
+            return Result.success(page);
+        }
+
+        //查询所有orderItem
+        List<OrderItem> orderItems = orderItemMapper.selectBatchByOrderIds(orderIds);
+
+        //判空
+        if(orderItems != null && !orderItems.isEmpty()) {
+
+            //组装成map
+            Map<String,OrderItem> orderItemMap = orderItems.stream()
+                    .collect(Collectors.toMap(OrderItem::getOrderId, Function.identity()));
+
+            //填充
+            for(Order order:page.getRecords()){
+                order.setOrderItem(orderItemMap.get(order.getOrderId()));
+            }
         }
 
         //返回page
@@ -481,18 +554,38 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         Page<Order> page = new Page<>(pageNum,pageSize);
         LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Order::getUserId,userId)
+                .eq(Order::getIsDeleted,ORDER_ISDELETED_NO)
                 .orderByDesc(Order::getCreateTime);
 
         //执行分页查询
         page(page,wrapper);
 
-        //查询买到的订单商品
-        //TODO：可以优化成一次联表查询，效率提升十倍
-        for(Order order:page.getRecords()){
-            List<OrderItem> orderItems = orderItemMapper.selectList(
-                    new LambdaQueryWrapper<OrderItem>().eq(OrderItem::getOrderId,order.getOrderId())
-            );
-            order.setOrderItems(orderItems);
+        //先查询所有orderId
+        List<String> orderIds = page.getRecords()
+                .stream()
+                .map(Order::getOrderId)
+                .collect(Collectors.toList());
+
+        //判空
+        if(orderIds.isEmpty()){
+            log.info("查询订单列表失败:订单列表为空,userId={}",userId);
+            return Result.success(page);
+        }
+
+        //查询所有orderItem
+        List<OrderItem> orderItems = orderItemMapper.selectBatchByOrderIds(orderIds);
+
+        //判空
+        if(orderItems != null && !orderItems.isEmpty()) {
+
+            //组装成map
+            Map<String,OrderItem> orderItemMap = orderItems.stream()
+                    .collect(Collectors.toMap(OrderItem::getOrderId, Function.identity()));
+
+            //填充
+            for(Order order:page.getRecords()){
+                order.setOrderItem(orderItemMap.get(order.getOrderId()));
+            }
         }
 
         //返回信息
@@ -513,18 +606,38 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         Page<Order> page = new Page<>(pageNum,pageSize);
         LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Order::getSellerId,userId)
+                .eq(Order::getIsDeleted,ORDER_ISDELETED_NO)
                 .orderByDesc(Order::getCreateTime);
 
         //执行分页查询
         page(page,wrapper);
 
-        //查询买到的订单商品
-        //TODO：可以优化成一次联表查询，效率提升十倍
-        for(Order order:page.getRecords()){
-            List<OrderItem> orderItems = orderItemMapper.selectList(
-                    new LambdaQueryWrapper<OrderItem>().eq(OrderItem::getOrderId,order.getOrderId())
-            );
-            order.setOrderItems(orderItems);
+        //先查询所有orderId
+        List<String> orderIds = page.getRecords()
+                .stream()
+                .map(Order::getOrderId)
+                .collect(Collectors.toList());
+
+        //判空
+        if(orderIds.isEmpty()){
+            log.info("查询订单列表失败:订单列表为空,userId={}",userId);
+            return Result.success(page);
+        }
+
+        //查询所有orderItem
+        List<OrderItem> orderItems = orderItemMapper.selectBatchByOrderIds(orderIds);
+
+        //判空
+        if(orderItems != null && !orderItems.isEmpty()) {
+
+            //组装成map
+            Map<String,OrderItem> orderItemMap = orderItems.stream()
+                    .collect(Collectors.toMap(OrderItem::getOrderId, Function.identity()));
+
+            //填充
+            for(Order order:page.getRecords()){
+                order.setOrderItem(orderItemMap.get(order.getOrderId()));
+            }
         }
 
         //返回信息
@@ -532,7 +645,6 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         return Result.success(page);
     }
 
-    //TODO:改成双方的逻辑删除
     //删除订单
     @Override
     public Result<Void> deleteOrder(Long userId, String orderId) {
@@ -546,16 +658,17 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             return Result.error(404,"订单不存在");
         }
 
+        //检查订单是否删除
+        if(order.getIsDeleted().equals(ORDER_ISDELETED_YES)){
+            log.warn("删除订单失败:订单已删除,userId={},orderId={}",userId,orderId);
+            return Result.error(404,"订单已删除");
+        }
+
         // ✅ 判断是否是自己的订单（买家或卖家都可以删）
         if (!order.getUserId().equals(userId) && !order.getSellerId().equals(userId)) {
             log.warn("删除订单失败: 无权限, userId={}, orderId={}", userId, orderId);
             return Result.error(403, "无权限");
         }
-
-        //获取订单物品list
-        List<OrderItem> orderItems = orderItemMapper.selectList(
-                new LambdaQueryWrapper<OrderItem>().eq(OrderItem::getOrderId,order.getOrderId())
-        );
 
         //判断order是否取消或者完成或者已退款，如果符合，则删除，不符合，报错
         Integer status = order.getStatus();
@@ -565,11 +678,8 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         }
 
         //删除数据库
-        orderMapper.deleteById(orderId);
-        for(OrderItem item:orderItems){
-            String itemId = item.getItemId();
-            orderItemMapper.deleteById(itemId);
-        }
+        order.setIsDeleted(ORDER_ISDELETED_YES);
+        updateById(order);
 
         //返回结果
         log.info("删除订单成功:userId={},orderId={}",userId,orderId);
@@ -591,18 +701,38 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Order::getUserId,userId)
                 .eq(Order::getStatus,status)
+                .eq(Order::getIsDeleted,ORDER_ISDELETED_NO)
                 .orderByDesc(Order::getCreateTime);
 
         //执行分页查询
         page(page,wrapper);
 
-        //查询买到的订单商品
-        //TODO：可以优化成一次联表查询，效率提升十倍
-        for(Order order:page.getRecords()){
-            List<OrderItem> orderItems = orderItemMapper.selectList(
-                    new LambdaQueryWrapper<OrderItem>().eq(OrderItem::getOrderId,order.getOrderId())
-            );
-            order.setOrderItems(orderItems);
+        //先查询所有orderId
+        List<String> orderIds = page.getRecords()
+                .stream()
+                .map(Order::getOrderId)
+                .collect(Collectors.toList());
+
+        //判空
+        if(orderIds.isEmpty()){
+            log.info("查询订单列表失败:订单列表为空,userId={}",userId);
+            return Result.success(page);
+        }
+
+        //查询所有orderItem
+        List<OrderItem> orderItems = orderItemMapper.selectBatchByOrderIds(orderIds);
+
+        //判空
+        if(orderItems != null && !orderItems.isEmpty()) {
+
+            //组装成map
+            Map<String,OrderItem> orderItemMap = orderItems.stream()
+                    .collect(Collectors.toMap(OrderItem::getOrderId, Function.identity()));
+
+            //填充
+            for(Order order:page.getRecords()){
+                order.setOrderItem(orderItemMap.get(order.getOrderId()));
+            }
         }
 
         log.info("状态筛选查询我买到的成功:userId={}",userId);
@@ -624,18 +754,38 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Order::getSellerId,userId)
                 .eq(Order::getStatus,status)
+                .eq(Order::getIsDeleted,ORDER_ISDELETED_NO)
                 .orderByDesc(Order::getCreateTime);
 
         //执行分页查询
         page(page,wrapper);
 
-        //查询买到的订单商品
-        //TODO：可以优化成一次联表查询，效率提升十倍
-        for(Order order:page.getRecords()){
-            List<OrderItem> orderItems = orderItemMapper.selectList(
-                    new LambdaQueryWrapper<OrderItem>().eq(OrderItem::getOrderId,order.getOrderId())
-            );
-            order.setOrderItems(orderItems);
+        //先查询所有orderId
+        List<String> orderIds = page.getRecords()
+                .stream()
+                .map(Order::getOrderId)
+                .collect(Collectors.toList());
+
+        //判空
+        if(orderIds.isEmpty()){
+            log.info("查询订单列表失败:订单列表为空,userId={}",userId);
+            return Result.success(page);
+        }
+
+        //查询所有orderItem
+        List<OrderItem> orderItems = orderItemMapper.selectBatchByOrderIds(orderIds);
+
+        //判空
+        if(orderItems != null && !orderItems.isEmpty()) {
+
+            //组装成map
+            Map<String,OrderItem> orderItemMap = orderItems.stream()
+                    .collect(Collectors.toMap(OrderItem::getOrderId, Function.identity()));
+
+            //填充
+            for(Order order:page.getRecords()){
+                order.setOrderItem(orderItemMap.get(order.getOrderId()));
+            }
         }
 
         log.info("状态筛选查询我卖出的成功:userId={}",userId);

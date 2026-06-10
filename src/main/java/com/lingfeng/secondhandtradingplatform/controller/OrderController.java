@@ -11,7 +11,6 @@ import com.lingfeng.secondhandtradingplatform.DTO.response.OrderDetailResponse;
 import com.lingfeng.secondhandtradingplatform.pojo.Order;
 import com.lingfeng.secondhandtradingplatform.service.OrderService;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameters;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -38,7 +37,7 @@ public class OrderController {
             @ApiResponse(responseCode = "404",description = "商品不存在")
     })
     @SaCheckLogin
-    public Result<Void> createOrder(@RequestBody OrderCreateRequest request){
+    public Result<Void> createOrder(@Valid @RequestBody OrderCreateRequest request){
         Long userId = StpUtil.getLoginIdAsLong();
         Long productId = request.getProductId();
         Integer quantity = request.getQuantity();
@@ -132,7 +131,7 @@ public class OrderController {
     @PostMapping("/myOrderList")
     @Operation(summary = "查询我的订单列表")
     @SaCheckLogin
-    public Result<IPage<Order>> orderList(@RequestBody PageRequest pageRequest){
+    public Result<IPage<Order>> orderList(@Valid @RequestBody PageRequest pageRequest){
         Long userId = StpUtil.getLoginIdAsLong();
         return orderService.orderList(userId,pageRequest);
     }
@@ -141,7 +140,7 @@ public class OrderController {
     @PostMapping("/myBoughtList")
     @Operation(summary = "查询我买到的订单")
     @SaCheckLogin
-    public Result<IPage<Order>> myBoughtList(@RequestBody PageRequest pageRequest){
+    public Result<IPage<Order>> myBoughtList(@Valid @RequestBody PageRequest pageRequest){
         Long userId = StpUtil.getLoginIdAsLong();
         return orderService.myBoughtList(userId,pageRequest);
     }
@@ -150,7 +149,7 @@ public class OrderController {
     @PostMapping("/mySoldList")
     @Operation(summary = "查询我卖出的订单")
     @SaCheckLogin
-    public Result<IPage<Order>> mySoldList(@RequestBody PageRequest pageRequest){
+    public Result<IPage<Order>> mySoldList(@Valid @RequestBody PageRequest pageRequest){
         Long userId = StpUtil.getLoginIdAsLong();
         return orderService.mySoldList(userId,pageRequest);
     }
@@ -173,7 +172,7 @@ public class OrderController {
     @PostMapping("/myBoughtListByStatus")
     @Operation(summary = "查询我买到的订单")
     @SaCheckLogin
-    public Result<IPage<Order>> myBoughtListByStatus(@RequestBody GetMyListByStatusRequest request){
+    public Result<IPage<Order>> myBoughtListByStatus(@Valid @RequestBody GetMyListByStatusRequest request){
         Long userId = StpUtil.getLoginIdAsLong();
         return orderService.myBoughtListByStatus(userId,request);
     }
@@ -182,7 +181,7 @@ public class OrderController {
     @PostMapping("/mySoldListByStatus")
     @Operation(summary = "查询我卖出的订单")
     @SaCheckLogin
-    public Result<IPage<Order>> mySoldListByStatus(@RequestBody GetMyListByStatusRequest request){
+    public Result<IPage<Order>> mySoldListByStatus(@Valid @RequestBody GetMyListByStatusRequest request){
         Long userId = StpUtil.getLoginIdAsLong();
         return orderService.mySoldListByStatus(userId,request);
     }

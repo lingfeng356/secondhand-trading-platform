@@ -42,4 +42,7 @@ public class ProductListRequest {
 
     @Schema(description = "商品标题（模糊搜索）", example = "iPhone")
     private String title;
+
+    @Schema(description = "他人id")
+    private Long userId;
 }

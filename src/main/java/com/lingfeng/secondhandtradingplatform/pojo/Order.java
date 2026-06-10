@@ -6,7 +6,6 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -40,8 +39,10 @@ public class Order {
     private LocalDateTime updateTime;
 
     @TableField(exist = false)
-    private List<OrderItem> orderItems;
+    private OrderItem orderItem;
 
     //0未评价，1已评价
     private Integer isReview;
+
+    private Integer isDeleted;
 }

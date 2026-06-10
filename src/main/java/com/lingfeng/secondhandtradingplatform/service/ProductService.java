@@ -22,7 +22,7 @@ public interface ProductService {
 
     Result<Void> republishProduct(Long userId, Long productId);
 
-    Result<IPage<Product>> showMyList(Long userId, PageRequest pageRequest);
+    Result<IPage<Product>> showUserProductList(Long userId, PageRequest pageRequest);
 
     Result<IPage<Product>> showProductList(ProductListRequest productListRequestDTO);
 

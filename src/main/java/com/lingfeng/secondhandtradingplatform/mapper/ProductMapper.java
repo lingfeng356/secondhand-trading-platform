@@ -2,9 +2,11 @@ package com.lingfeng.secondhandtradingplatform.mapper;
 
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lingfeng.secondhandtradingplatform.pojo.Product;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 @Mapper
@@ -25,4 +27,10 @@ public interface ProductMapper extends BaseMapper<Product> {
     int updateProductStockAndStatus(@Param("productId") Long productId
             ,@Param("stock") Integer stock,
                            @Param("status") Integer status);
+
+    //查询我的收藏商品
+    @Select("select p.* from product p inner join collect c on p.id = c.product_id " +
+            "where c.user_id = #{userId} and p.deleted = 0 " +
+            "order by c.create_time desc")
+    Page<Product> batchCollectByUserId(Page<Product> page, @Param("userId") Long userId);
 }

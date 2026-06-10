@@ -3,7 +3,6 @@ package com.lingfeng.secondhandtradingplatform.rabbitProducer;
 
 import com.lingfeng.secondhandtradingplatform.config.RabbitMQConfig;
 import com.lingfeng.secondhandtradingplatform.message.LikeMessage;
-import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -21,6 +20,7 @@ public class ProductRabbitProducer {
 
     //发送浏览消息
     public void sendViewMessage(Long productId){
+
         if(productId == null){
             log.error("productId为空,不发送浏览消息");
             return;
@@ -37,11 +37,12 @@ public class ProductRabbitProducer {
                 correlationData
         );
 
-        log.debug("发送浏览消息: productId={}", productId);
+        log.info("发送浏览消息: productId={}", productId);
     }
 
     //发送点赞消息
     public void sendLikeMessage(Long userId,Long productId){
+
         if(productId == null){
             log.warn("无效点赞消息:userId={},productId={}",userId,productId);
             return;
@@ -61,6 +62,6 @@ public class ProductRabbitProducer {
                 correlationData
         );
 
-        log.debug("发送点赞消息: userId={},productId={}",userId,productId);
+        log.info("发送点赞消息: userId={},productId={}",userId,productId);
     }
 }

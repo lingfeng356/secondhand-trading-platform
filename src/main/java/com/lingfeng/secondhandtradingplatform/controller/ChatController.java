@@ -10,6 +10,7 @@ import com.lingfeng.secondhandtradingplatform.DTO.response.ConversationInListRes
 import com.lingfeng.secondhandtradingplatform.DTO.response.MessageDetailResponse;
 import com.lingfeng.secondhandtradingplatform.service.ChatService;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -41,7 +42,7 @@ public class ChatController {
     @MessageMapping("/chat.send")
     @Schema(description = "发送消息")
     @SaCheckLogin
-    public Result<Void> sendMessage(@Payload ChatMessageRequest request, Principal principal){
+    public Result<Void> sendMessage(@Valid @Payload ChatMessageRequest request, Principal principal){
         return chatService.sendMessage(request,principal);
     }
 

@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -30,7 +31,7 @@ public class LoginController {
             @ApiResponse(responseCode = "400",description = "验证码无效"),
             @ApiResponse(responseCode = "404",description = "用户不存在")
     })
-    public Result<String> loginByCode(@RequestBody LoginByCodeRequest lbcr){
+    public Result<String> loginByCode(@Valid @RequestBody LoginByCodeRequest lbcr){
         String phone = lbcr.getPhone();
         String code = lbcr.getCode();
         return loginService.loginByCode(phone,code);
@@ -39,7 +40,7 @@ public class LoginController {
     //发送验证码
     @PostMapping("/sendCode")
     @Operation(summary = "发送验证码")
-    public Result<String> sendCode(@RequestBody SendCodeRequest scr){
+    public Result<String> sendCode(@Valid @RequestBody SendCodeRequest scr){
         String phone = scr.getPhone();
         return loginService.sendCode(phone);
     }
@@ -51,7 +52,7 @@ public class LoginController {
             @ApiResponse(responseCode = "404",description = "用户不存在"),
             @ApiResponse(responseCode = "400",description = "密码错误")
     })
-    public Result<String> loginByPassword(@RequestBody LoginByPasswordRequest lbpr){
+    public Result<String> loginByPassword(@Valid @RequestBody LoginByPasswordRequest lbpr){
         String phone = lbpr.getPhone();
         String password = lbpr.getPassword();
         return loginService.loginByPassword(phone,password);

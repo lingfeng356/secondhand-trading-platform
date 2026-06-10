@@ -6,7 +6,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
-import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -33,7 +32,7 @@ public class OrderDetailResponse {
     // ========== 商品列表 ==========
 
     @Schema(description = "订单商品列表")
-    private List<OrderItem> items;
+    private OrderItem orderItem;
 
     // ========== 卖家信息 ==========
     @Schema(description = "卖家ID", example = "10001")

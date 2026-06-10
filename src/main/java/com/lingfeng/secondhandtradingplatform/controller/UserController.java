@@ -9,12 +9,12 @@ import com.lingfeng.secondhandtradingplatform.DTO.request.ResetPasswordRequest;
 import com.lingfeng.secondhandtradingplatform.DTO.Result;
 import com.lingfeng.secondhandtradingplatform.DTO.request.UpdateUserRequest;
 import com.lingfeng.secondhandtradingplatform.DTO.response.UserDetailResponse;
-import com.lingfeng.secondhandtradingplatform.pojo.User;
 import com.lingfeng.secondhandtradingplatform.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -48,7 +48,7 @@ public class UserController {
     @PostMapping("/updateUser")
     @Operation(summary = "编辑用户信息")
     @ApiResponse(responseCode = "404",description = "用户不存在")
-    public Result<Void> updateUser(@RequestBody UpdateUserRequest uur){
+    public Result<Void> updateUser(@Valid  @RequestBody UpdateUserRequest uur){
         //查询用户id
         Long userId = StpUtil.getLoginIdAsLong();
         return userService.updateUser(userId,uur);
@@ -61,7 +61,7 @@ public class UserController {
             @ApiResponse(responseCode = "400",description = "验证码错误"),
             @ApiResponse(responseCode = "409",description = "用户已注册")
     })
-    public Result<String> register(@RequestBody RegisterRequest rr){
+    public Result<String> register(@Valid @RequestBody RegisterRequest rr){
         return userService.register(rr);
     }
 
@@ -83,7 +83,7 @@ public class UserController {
             @ApiResponse(responseCode = "400",description = "验证码错误"),
             @ApiResponse(responseCode = "404",description = "用户不存在")
     })
-    public Result<Void> resetPwd(@RequestBody ResetPasswordRequest rpr){
+    public Result<Void> resetPwd(@Valid @RequestBody ResetPasswordRequest rpr){
         return userService.resetPwd(rpr);
     }
 
@@ -101,7 +101,7 @@ public class UserController {
     @PostMapping("/changePassword")
     @Operation(summary = "修改密码")
     @SaCheckLogin
-    public Result<Void> changePassword(@RequestBody ChangePasswordRequest request){
+    public Result<Void> changePassword(@Valid @RequestBody ChangePasswordRequest request){
         Long userId = StpUtil.getLoginIdAsLong();
         return userService.changePassword(request,userId);
     }
