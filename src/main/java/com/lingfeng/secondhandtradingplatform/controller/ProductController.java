@@ -30,7 +30,6 @@ public class ProductController {
     @Autowired
     private ProductService productService;
 
-    //OK
     //发布商品
     @PostMapping("/publishProduct")
     @Operation(summary = "发布商品")
@@ -40,7 +39,6 @@ public class ProductController {
         return productService.publishProduct(userId,ppr);
     }
 
-    //TODO：一堆问题
     //查询商品详情
     @GetMapping("/detail/{productId}")
     @Operation(summary = "查询商品详情")
@@ -49,7 +47,6 @@ public class ProductController {
         return productService.productDetail(productId);
     }
 
-    //OK
     //编辑商品信息
     @PostMapping("/update/{productId}")
     @Operation(summary = "编辑商品信息")
@@ -64,7 +61,6 @@ public class ProductController {
         return productService.productUpdate(userId,updr,productId);
     }
 
-    //OK
     //下架商品
     @PostMapping("/remove/{productId}")
     @Operation(summary = "下架商品")
@@ -93,7 +89,6 @@ public class ProductController {
         return productService.deleteProduct(userId,productId);
     }
 
-    //OK
     //将已下架的商品重新上架
     @PostMapping("/republish/{productId}")
     @Operation(summary = "重新上架商品")
@@ -108,7 +103,6 @@ public class ProductController {
         return productService.republishProduct(userId,productId);
     }
 
-    //OK
     //我的发布商品
     @PostMapping("/productList/{userId}")
     @Operation(summary = "查询用户的发布的商品")
@@ -125,7 +119,6 @@ public class ProductController {
         return productService.showProductList(productListRequestDTO);
     }
 
-    //TODO:OK吗？
     //首页商品个性化推荐
     @PostMapping("/recommendProducts")
     @Operation(summary = "根据热度推荐首页商品")
@@ -151,7 +144,6 @@ public class ProductController {
         return productService.upload(file,userId,productId);
     }
 
-    //TODO:异步处理有问题
     //点赞商品
     @PostMapping("/like/{productId}")
     @Operation(summary = "点赞商品")
@@ -161,7 +153,6 @@ public class ProductController {
         return productService.likeProduct(userId,productId);
     }
 
-    //OK
     //取消点赞
     @PostMapping("/cancelLike/{productId}")
     @Operation(summary = "取消点赞商品")
@@ -171,7 +162,6 @@ public class ProductController {
         return productService.cancelLikeProduct(userId,productId);
     }
 
-    //OK
     //检查是否已点赞
     @GetMapping("/checkIsLike/{productId}")
     @Operation(summary = "检查是否点赞")
@@ -181,7 +171,6 @@ public class ProductController {
         return productService.checkIsLike(userId,productId);
     }
 
-    //OK
     //收藏
     @PostMapping("/collectProduct/{productId}")
     @Operation(summary = "收藏商品")
@@ -191,7 +180,6 @@ public class ProductController {
         return productService.collectProduct(userId,productId);
     }
 
-    //OK
     //取消收藏
     @PostMapping("/cancelCollect/{productId}")
     @Operation(summary = "取消收藏")
@@ -201,7 +189,6 @@ public class ProductController {
         return productService.cancelCollect(userId,productId);
     }
 
-    //OK
     //是否收藏
     @GetMapping("/checkCollect/{productId}")
     @Operation(summary = "是否收藏")
@@ -211,7 +198,6 @@ public class ProductController {
         return productService.checkIsCollect(userId,productId);
     }
 
-    //OK
     //我的收藏商品
     @PostMapping("/myCollectProducts")
     @Operation(summary = "我的收藏商品")
@@ -221,7 +207,6 @@ public class ProductController {
         return productService.myCollectProducts(userId,pageRequest);
     }
 
-    //OK
     //发布评价
     @PostMapping("/publishReview")
     @Operation(summary = "发布评价")
@@ -240,7 +225,6 @@ public class ProductController {
         return productService.deleteReview(userId,reviewId);
     }
 
-    //OK
     //显示评价列表
     @PostMapping("/showReviewList/{productId}")
     @Operation(summary = "显示评价")
@@ -250,7 +234,6 @@ public class ProductController {
         return productService.showReviewList(userId,productId,pageRequest);
     }
 
-    //OK
     //商家回复
     @PostMapping("/reply")
     @Operation(summary = "商家回复")

@@ -2,6 +2,7 @@ package com.lingfeng.secondhandtradingplatform.service.impl;
 
 
 import cn.dev33.satoken.stp.StpUtil;
+import cn.hutool.core.bean.BeanUtil;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.lingfeng.secondhandtradingplatform.DTO.request.ChangePasswordRequest;
 import com.lingfeng.secondhandtradingplatform.DTO.request.RegisterRequest;
@@ -69,18 +70,14 @@ public class UserServiceImpl extends ServiceImpl<UserMapper,User> implements Use
         log.info("编辑用户请求:userId={}",userId);
 
         //查询数据库判断是否有该用户
-        User hasUser = getById(userId);
-        if(hasUser == null){
+        User user = getById(userId);
+        if(user == null){
             log.warn("编辑用户失败:用户不存在,userId={}",userId);
             return Result.error(404,"用户不存在");
         }
 
-        //将请求对象转换为user对象
-        User user = userConverter.toEntity(uur);
-
         //更新数据库信息
-        //因为前端传回的userId为null，所以需要手动传值
-        user.setId(userId);
+        BeanUtil.copyProperties(uur,user,"id","createTime","updateTime","password");
         updateById(user);
 
         //删除redis缓存

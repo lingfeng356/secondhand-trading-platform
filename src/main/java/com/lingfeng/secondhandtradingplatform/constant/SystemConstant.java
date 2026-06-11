@@ -26,7 +26,6 @@ public class SystemConstant {
     public static final Integer PRODUCT_STATUS_OFFSALE = 2;
 
     public static final String PRODUCT_HOT_LIST = "product:hot:list";
-    public static final long PRODUCT_HOT_LIST_TTL = 5L;
 
     public static final Integer ORDER_STATUS_PENDING = 0;
     public static final Integer ORDER_STATUS_PROCESSING = 1;
@@ -50,4 +49,8 @@ public class SystemConstant {
     public static final Integer REVIEW_ISDELETED_NO = 0;
 
     public static final long LIKE_TTL = 10L;
+
+    public static final String PRODUCT_REBUILD_LOCK_KEY = "product:rebuild:lock:";
+
+    public static final String HOT_LIST_REBUILD_LOCK_KEY = "hotList:rebuild:lock:";
 }

@@ -1,5 +1,7 @@
 package com.lingfeng.secondhandtradingplatform.service.impl;
 
+import cn.dev33.satoken.exception.NotLoginException;
+import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.lang.TypeReference;
 import cn.hutool.json.JSONUtil;
@@ -10,12 +12,16 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.lingfeng.secondhandtradingplatform.DTO.request.*;
 import com.lingfeng.secondhandtradingplatform.DTO.Result;
 import com.lingfeng.secondhandtradingplatform.DTO.response.ProductDetailResponse;
+import com.lingfeng.secondhandtradingplatform.cache.HotListCache;
 import com.lingfeng.secondhandtradingplatform.converter.ProductConverter;
 import com.lingfeng.secondhandtradingplatform.mapper.*;
 import com.lingfeng.secondhandtradingplatform.pojo.*;
 import com.lingfeng.secondhandtradingplatform.rabbitProducer.ProductRabbitProducer;
 import com.lingfeng.secondhandtradingplatform.service.ProductService;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
@@ -30,6 +36,7 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 import static com.lingfeng.secondhandtradingplatform.constant.SystemConstant.*;
@@ -66,6 +73,9 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
     private OrderItemMapper orderItemMapper;
     @Autowired
     private OrderMapper orderMapper;
+
+    @Autowired
+    private RedissonClient redissonClient;
 
     //发布商品
     @Override
@@ -105,7 +115,6 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         return Result.success();
     }
 
-    //TODO:缓存击穿和缓存穿透，重复代码
     //查看商品详情
     @Override
     public Result<ProductDetailResponse> productDetail(Long productId) {
@@ -126,14 +135,20 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
 
         //如果不为空和不为null,直接返回结果
         if(!tmpMap.isEmpty()){
+
+            //防止缓存穿透
+            if(tmpMap.containsKey("null")){
+                stringRedisTemplate.expire(key,PRODUCT_TTL,TimeUnit.MINUTES);
+                log.warn("商品不存在(缓存), productId={}", productId);
+                return Result.error(404, "商品不存在");
+            }
+
+            //获取product对象
             String json = JSONUtil.toJsonStr(tmpMap);
             Product product = JSONUtil.toBean(json, Product.class);
 
-            //防止缓存穿透
-            if(product == null){
-                log.warn("查询商品失败:商品不存在,productId={}",productId);
-                return Result.error(404,"商品不存在");
-            }
+            //访问时刷新防止缓存击穿
+            stringRedisTemplate.expire(key,PRODUCT_TTL, TimeUnit.MINUTES);
 
             producer.sendViewMessage(productId);
 
@@ -223,10 +238,9 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         }
 
         //更新数据库
-        //因为前端传来的product没有id，需要手动传参，到数据库后会自动更改非null的数据
-        Product pct = productConverter.toEntity(updr);
-        pct.setId(productId);
-        updateById(pct);
+        BeanUtils.copyProperties(updr, product, "id", "userId", "status", "isDeleted",
+                "createTime","viewCount","likeCount","updateTime","collectCount");
+        updateById(product);
 
         try {
             //删除redis缓存
@@ -348,6 +362,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         return Result.success();
     }
 
+    //OK
     //将已下架的商品重新上架
     @Override
     public Result<Void> republishProduct(Long userId, Long productId) {
@@ -412,15 +427,28 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
 
         log.info("查询用户发布商品请求:userId={}",userId);
 
+        Long rUserId = null;
+
+        try {
+            rUserId = StpUtil.getLoginIdAsLong();
+        } catch (NotLoginException e) {
+            rUserId = null;
+        }
+
         Integer pageNum = pageRequest.getPageNum();
         Integer pageSize = pageRequest.getPageSize();
 
         // 直接分页查询
         Page<Product> page = new Page<>(pageNum, pageSize);
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
+
+        if (!userId.equals(rUserId)){
+            wrapper.eq(Product::getStatus,PRODUCT_STATUS_ONSALE);
+        }
         wrapper.eq(Product::getUserId, userId)
                 .eq(Product::getIsDeleted,PRODUCT_ISDELETED_NO)
                 .orderByDesc(Product::getCreateTime);
+
         page(page, wrapper);
 
         //返回结果
@@ -440,6 +468,8 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
 
         //构建查询条件
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
+
+        wrapper.eq(Product::getIsDeleted,PRODUCT_ISDELETED_NO);
 
         //分类筛选
         if(StringUtils.hasText(productListRequest.getCategory())){
@@ -486,9 +516,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
             }
         } else {
             // 默认按创建时间倒序
-            wrapper.eq(Product::getStatus,PRODUCT_STATUS_ONSALE)
-                    .eq(Product::getIsDeleted,PRODUCT_ISDELETED_NO)
-                    .orderByDesc(Product::getCreateTime);
+            wrapper.orderByDesc(Product::getCreateTime);
         }
 
         //执行分页查询
@@ -511,11 +539,62 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         String cacheKey = PRODUCT_HOT_LIST + ":" + pageNum + ":" + pageSize;
 
         String cacheJson = stringRedisTemplate.opsForValue().get(cacheKey);
+
         if(StringUtils.hasText(cacheJson)){
             //反序列化
-            Page<Product> cachePage = JSONUtil.toBean(cacheJson, new TypeReference<>() {}, false);
+            HotListCache cache = JSONUtil.toBean(cacheJson, new TypeReference<>() {}, false);
+
+            //防止缓存击穿
+            Long expireTime = cache.getExpiredTime();
+
+            if(expireTime < System.currentTimeMillis()){
+                String lockKey = HOT_LIST_REBUILD_LOCK_KEY + ":" + pageNum + ":" + pageSize;
+                RLock lock = redissonClient.getLock(lockKey);
+                try {
+                    //尝试加锁
+                    boolean isLocked = lock.tryLock(3,10,TimeUnit.SECONDS);
+
+                    //重建缓存
+                    Page<Product> page = new Page<>(pageNum,pageSize);
+                    LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
+                    wrapper.eq(Product::getStatus,PRODUCT_STATUS_ONSALE)
+                            .eq(Product::getIsDeleted,PRODUCT_ISDELETED_NO)
+                            .orderByDesc(Product::getViewCount)   // 浏览量
+                            .orderByDesc(Product::getLikeCount)   // 点赞量
+                            .orderByDesc(Product::getCreateTime); // 最新
+
+                    page(page,wrapper);
+
+                    HotListCache hotListCache = new HotListCache();
+                    hotListCache.setPage(page);
+                    int randomTime = new Random().nextInt(10);
+                    long ttlMillis = (30 + randomTime) * 60 * 1000;
+                    hotListCache.setExpiredTime(System.currentTimeMillis() + ttlMillis);
+
+                    try {
+                        //转成json格式存入redis缓存
+                        String jsonData = JSONUtil.toJsonStr(hotListCache);
+                        stringRedisTemplate.opsForValue().set(cacheKey,jsonData);
+                    } catch (Exception e) {
+                        log.warn("写入缓存失败:未知原因");
+                    }
+
+                    log.info("推荐首页商品成功");
+                    return Result.success(page);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("获取锁被中断");
+                } finally {
+                    if(lock.isHeldByCurrentThread()){
+                        lock.unlock();
+                    }
+                }
+            }
+
+            Page<Product> page = cache.getPage();
+
             log.info("推荐首页商品成功");
-            return Result.success(cachePage);
+            return Result.success(page);
         }
 
         Page<Product> page = new Page<>(pageNum,pageSize);
@@ -528,10 +607,16 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
 
         page(page,wrapper);
 
+        HotListCache cache = new HotListCache();
+        cache.setPage(page);
+        int randomTime = new Random().nextInt(10);
+        long ttlMillis = (30 + randomTime) * 60 * 1000;
+        cache.setExpiredTime(System.currentTimeMillis() + ttlMillis);
+
         try {
             //转成json格式存入redis缓存
-            String jsonData = JSONUtil.toJsonStr(page);
-            stringRedisTemplate.opsForValue().set(cacheKey,jsonData,PRODUCT_HOT_LIST_TTL,TimeUnit.SECONDS);
+            String jsonData = JSONUtil.toJsonStr(cache);
+            stringRedisTemplate.opsForValue().set(cacheKey,jsonData);
         } catch (Exception e) {
             log.warn("写入缓存失败:未知原因");
         }
@@ -645,7 +730,6 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
     }
 
     //点赞商品
-    //TODO：并发安全，优化性能
     @Override
     public Result<Void> likeProduct(Long userId,Long productId) {
 
@@ -683,7 +767,6 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
             log.warn("取消点赞失败: 未点过赞, userId={}, productId={}", userId, productId);
             return Result.error(400, "尚未点赞");
         }
-
     }
 
     //检查是否点赞
@@ -710,13 +793,20 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
     }
 
     //收藏商品
-    //TODO:有问题
     @Override
     public Result<Void> collectProduct(Long userId, Long productId) {
 
         log.info("收藏商品请求:userId={},productId={}",userId,productId);
 
         if(productId == null){
+            log.warn("收藏商品失败:商品不存在,userId={},productId={}",userId,productId);
+            return Result.error(404,"商品不存在");
+        }
+
+        Product product = getById(productId);
+
+        //判断productId是否存在
+        if(product == null){
             log.warn("收藏商品失败:商品不存在,userId={},productId={}",userId,productId);
             return Result.error(404,"商品不存在");
         }
@@ -736,10 +826,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
             String key = PRODUCT_COLLECT_KEY + productId;
             stringRedisTemplate.opsForSet().add(key,userId.toString());
 
-            Product product = getById(productId);
-            Integer newCollectCount = product.getCollectCount() + 1;
-            product.setCollectCount(newCollectCount);
-            updateById(product);
+            productMapper.addProductCollects(productId);
 
             log.info("收藏商品成功:userId={},productId={}",userId,productId);
             return Result.success();
@@ -760,6 +847,15 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
             return Result.error(404,"商品不存在");
         }
 
+        Product product = getById(productId);
+
+        //判断productId是否存在
+        if(product == null){
+            log.warn("取消收藏商品失败:商品不存在,userId={},productId={}",userId,productId);
+            return Result.error(404,"商品不存在");
+        }
+
+
         String key = PRODUCT_COLLECT_KEY + productId;
 
         //判断是否收藏
@@ -776,11 +872,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
                 .eq(Collect::getProductId,productId);
         collectMapper.delete(wrapper);
 
-        Product product = getById(productId);
-        Integer newCollectCount = product.getCollectCount() == 0 ? 0 : product.getCollectCount() - 1;
-
-        product.setCollectCount(newCollectCount);
-        updateById(product);
+        productMapper.deleteProductCollects(productId);
 
         try {
             stringRedisTemplate.opsForSet().remove(key,userId.toString());
@@ -822,14 +914,17 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
             return Result.success(false);
         }
 
-        //存redis
-        stringRedisTemplate.opsForSet().add(key,userId.toString());
+        try {
+            //存redis
+            stringRedisTemplate.opsForSet().add(key,userId.toString());
+        } catch (Exception e) {
+            log.warn("未知错误:不影响主流程");
+        }
 
         log.info("确认收藏商品请求成功:已收藏,userId={},productId={}",userId,productId);
         return Result.success(true);
     }
 
-    //OK
     //查询我的收藏商品
     @Override
     public Result<Page<Product>> myCollectProducts(Long userId, PageRequest pageRequest) {
@@ -845,7 +940,6 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         return Result.success(result);
     }
 
-    //OK
     //发布评价
     @Override
     public Result<Void> publishReview(Long userId, PublishReviewRequest request) {
@@ -855,6 +949,18 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         String orderId = request.getOrderId();
 
         log.info("发布评价请求:userId={},productId={}",userId,productId);
+
+        if(productId == null){
+            log.warn("商家回复失败:商品不存在,userId={},productId={}",userId,productId);
+            return Result.error(404,"商品不存在");
+        }
+
+        Product product = getById(productId);
+
+        if(product == null){
+            log.warn("商家回复失败:商品不存在,userId={},productId={}",userId,productId);
+            return Result.error(404,"商品不存在");
+        }
 
         //鉴权
         Order order = orderMapper.selectById(orderId);
@@ -919,7 +1025,6 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         return Result.success();
     }
 
-    //OK
     //删除评价
     @Override
     public Result<Void> deleteReview(Long userId, Long reviewId) {
@@ -959,7 +1064,6 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         return Result.success();
     }
 
-    //OK
     //商家回复
     @Override
     public Result<Void> replyReview(Long userId, ReplyReviewRequest request) {
@@ -1007,17 +1111,17 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         return Result.success();
     }
 
-    //OK
     //显示评价列表
     @Override
     public Result<Page<Review>> showReviewList(Long userId, Long productId, PageRequest pageRequest) {
         log.info("展示评价列表:productId={}",productId);
 
-        Product product = getById(productId);
-        if(product == null){
+        if(productId == null){
             log.warn("商家回复失败:商品不存在,userId={},productId={}",userId,productId);
             return Result.error(404,"商品不存在");
         }
+
+        Product product = getById(productId);
 
         if(product.getIsDeleted().equals(PRODUCT_ISDELETED_YES)){
             log.warn("商家回复失败:商品已删除,userId={},productId={}",userId,productId);

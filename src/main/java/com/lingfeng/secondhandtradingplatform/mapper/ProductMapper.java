@@ -33,4 +33,12 @@ public interface ProductMapper extends BaseMapper<Product> {
             "where c.user_id = #{userId} and p.deleted = 0 " +
             "order by c.create_time desc")
     Page<Product> batchCollectByUserId(Page<Product> page, @Param("userId") Long userId);
+
+    //原子增加商品收藏量
+    @Update("update product set collect_count = collect_count + 1 where id = #{productId}")
+    int addProductCollects(@Param("productId") Long productId);
+
+    //原子减少商品收藏量
+    @Update("update product set collect_count = collect_count - 1 where id = #{productId}")
+    int deleteProductCollects(@Param("productId") Long productId);
 }
