@@ -118,6 +118,17 @@
             <version>1.45.0</version>
         </dependency>
 
+        <!-- 开启 Spring 缓存抽象 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-cache</artifactId>
+        </dependency>
+        <!-- Caffeine 本地缓存 -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
+
         <!--连接池-->
         <dependency>
             <groupId>org.apache.commons</groupId>

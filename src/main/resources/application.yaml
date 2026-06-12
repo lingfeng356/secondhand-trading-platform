@@ -4,6 +4,10 @@ spring:
     port: 5672
     username: guest
     password: guest
+    cache:
+      channel:
+        size: 25 #每个连接缓存25个通道
+        checkout-timeout: 5000 #获取通道超时
   servlet:
     multipart:
       max-file-size: 2MB        # 单个文件最大大小
@@ -12,6 +16,14 @@ spring:
     url: jdbc:mysql://localhost:3306/second_hand_trading_platform
     username: root
     password: hexu0629
+    hikari:
+      maximum-pool-size: 10      # 最大连接数（默认10）
+      minimum-idle: 5            # 最小空闲连接（默认10）
+      connection-timeout: 30000  # 获取连接超时（毫秒，默认30秒）
+      idle-timeout: 600000       # 空闲超时（毫秒，10分钟）
+      max-lifetime: 1800000      # 连接最大存活时间（30分钟）
+      pool-name: SecondHandHikariPool  # 连接池名字，便于监控
+      connection-test-query: SELECT 1  # 测试连接是否有效
   data:
     redis:
       host: localhost
@@ -20,6 +32,12 @@ spring:
       database: 0
       connect-timeout: 5000
       client-type: lettuce
+      lettuce:
+        pool:
+          enabled: true #开启连接池
+          max-active: 8 #最大连接数
+          min-idle: 0 #最小空闲连接
+          max-wait: -1ms #获取连接超时时间 -1ms表示一直等
 
 mybatis-plus:
   configuration:
