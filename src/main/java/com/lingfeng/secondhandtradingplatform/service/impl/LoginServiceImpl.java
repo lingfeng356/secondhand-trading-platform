@@ -59,8 +59,14 @@ public class LoginServiceImpl extends ServiceImpl<UserMapper,User> implements Lo
 
         Long userId = user.getId();
 
+        if(user.getStatus().equals(1)){
+            log.warn("验证码登录失败:用户已封禁,userId={}",userId);
+            return Result.error(400,"用户已封禁");
+        }
+
         //使用satoken生成token进行登录
         StpUtil.login(userId);
+        StpUtil.getSession().set("role",user.getRole());
         String token = StpUtil.getTokenValue();
 
         //将user对象转变为userDTO对象,防止私密信息泄露
@@ -140,8 +146,14 @@ public class LoginServiceImpl extends ServiceImpl<UserMapper,User> implements Lo
 
         Long userId = user.getId();
 
+        if(user.getStatus().equals(1)){
+            log.warn("密码登录失败:用户已封禁,userId={}",userId);
+            return Result.error(400,"用户已封禁");
+        }
+
         //使用satoken生成token进行登录
         StpUtil.login(userId);
+        StpUtil.getSession().set("role",user.getRole());
         String token = StpUtil.getTokenValue();
 
         //将user对象转变为userDTO对象,防止私密信息泄露

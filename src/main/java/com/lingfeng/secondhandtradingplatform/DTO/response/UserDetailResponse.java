@@ -23,4 +23,7 @@ public class UserDetailResponse {
 
     @Schema(description = "地址", example = "广东省深圳市南山区")
     private String address;
+
+    @Schema(description = "状态")
+    private Integer status;
 }

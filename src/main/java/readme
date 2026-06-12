@@ -3,7 +3,7 @@
 
 1自定义线程池处理异步定时任务 OK
 
-2添加caffeine本地缓存优化性能
+2添加caffeine本地缓存优化性能 OK
 
 3差satoken进阶管理员模块
 
