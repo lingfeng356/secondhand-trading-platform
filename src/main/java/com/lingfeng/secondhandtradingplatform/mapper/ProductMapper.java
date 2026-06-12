@@ -30,7 +30,7 @@ public interface ProductMapper extends BaseMapper<Product> {
 
     //查询我的收藏商品
     @Select("select p.* from product p inner join collect c on p.id = c.product_id " +
-            "where c.user_id = #{userId} and p.deleted = 0 " +
+            "where c.user_id = #{userId} and p.is_deleted = 0 " +
             "order by c.create_time desc")
     Page<Product> batchCollectByUserId(Page<Product> page, @Param("userId") Long userId);
 

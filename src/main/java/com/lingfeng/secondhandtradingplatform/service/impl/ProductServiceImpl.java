@@ -362,7 +362,6 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         return Result.success();
     }
 
-    //OK
     //将已下架的商品重新上架
     @Override
     public Result<Void> republishProduct(Long userId, Long productId) {
@@ -445,6 +444,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         if (!userId.equals(rUserId)){
             wrapper.eq(Product::getStatus,PRODUCT_STATUS_ONSALE);
         }
+
         wrapper.eq(Product::getUserId, userId)
                 .eq(Product::getIsDeleted,PRODUCT_ISDELETED_NO)
                 .orderByDesc(Product::getCreateTime);
