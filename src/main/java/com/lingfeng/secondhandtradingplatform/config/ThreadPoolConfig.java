@@ -75,7 +75,7 @@ public class ThreadPoolConfig implements SchedulingConfigurer {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
 
         //核心线程数
-        executor.setCorePoolSize(10);
+        executor.setCorePoolSize(30);
 
         //允许回收空闲核心线程
         executor.setAllowCoreThreadTimeOut(true);

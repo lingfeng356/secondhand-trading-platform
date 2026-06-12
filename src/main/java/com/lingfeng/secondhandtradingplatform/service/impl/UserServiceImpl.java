@@ -17,6 +17,8 @@ import com.lingfeng.secondhandtradingplatform.service.UserService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,6 +44,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper,User> implements Use
     private UserConverter userConverter;
 
     //查询用户
+    @Cacheable(value = "userInfo",key = "#userId",unless = "#result == null")
     @Override
     public Result<UserDetailResponse> getByUserId(Long userId) {
 
@@ -64,6 +67,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper,User> implements Use
     }
 
     //更新用户
+    @CacheEvict(value = "userInfo", key = "#userId")
     @Override
     public Result<Void> updateUser(Long userId, UpdateUserRequest uur) {
 
@@ -89,6 +93,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper,User> implements Use
     }
 
     //上传图片
+    @CacheEvict(value = "userInfo", key = "#userId")
     @Override
     //TODO:看不懂喵
     public Result<Void> upload(MultipartFile file, Long userId) {
@@ -151,6 +156,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper,User> implements Use
     }
 
     //修改密码
+    @CacheEvict(value = "userInfo", key = "#userId")
     @Override
     public Result<Void> changePassword(ChangePasswordRequest request, Long userId) {
         String phone = request.getPhone();
@@ -206,6 +212,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper,User> implements Use
     }
 
     //重置密码
+    @CacheEvict(value = "userInfo", key = "#userId")
     @Override
     public Result<Void> resetPwd(ResetPasswordRequest rpr) {
         String phone = rpr.getPhone();

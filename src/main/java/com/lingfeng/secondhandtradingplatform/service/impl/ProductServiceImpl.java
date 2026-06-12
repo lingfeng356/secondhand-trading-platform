@@ -24,6 +24,10 @@ import org.redisson.api.RedissonClient;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -77,7 +81,12 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
     @Autowired
     private RedissonClient redissonClient;
 
-    //发布商品
+    // 发布商品：清除所有列表缓存
+    @Caching(evict = {
+            @CacheEvict(value = "productListBySearch", allEntries = true),
+            @CacheEvict(value = "categoryProducts", allEntries = true),
+            @CacheEvict(value = "recommendProducts", allEntries = true)
+    })
     @Override
     public Result<Void> publishProduct(Long userId, ProductPublishRequest ppr) {
 
@@ -116,6 +125,12 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
     }
 
     //查看商品详情
+    /*部分	意思
+    @Cacheable	告诉 Spring：这个方法要缓存
+    value = "productDetail"	缓存放在一个叫 "productDetail" 的文件夹里
+    key = "#productId"	用参数 productId 作为钥匙（比如 productId=100，钥匙就是"100"）
+    unless = "#result == null"	如果结果是 null，就不要缓存*/
+    @Cacheable(value = "productDetail",key = "#productId",unless = "#result == null")
     @Override
     public Result<ProductDetailResponse> productDetail(Long productId) {
 
@@ -206,6 +221,12 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
     }
 
     //编辑商品信息
+    @Caching(evict = {
+            @CacheEvict(value = "productDetail", key = "#productId"),
+            @CacheEvict(value = "categoryProducts", allEntries = true),
+            @CacheEvict(value = "recommendProducts", allEntries = true),
+            @CacheEvict(value = "productListBySearch", allEntries = true)
+    })
     @Override
     public Result<Void> productUpdate(Long userId, UpdateProductDetailRequest updr, Long productId) {
 
@@ -254,7 +275,14 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         return Result.success();
     }
 
+
     //下架商品
+    @Caching(evict = {
+            @CacheEvict(value = "productDetail", key = "#productId"),
+            @CacheEvict(value = "categoryProducts", allEntries = true),
+            @CacheEvict(value = "recommendProducts", allEntries = true),
+            @CacheEvict(value = "productListBySearch", allEntries = true)
+    })
     @Override
     public Result<Void> removeProduct(Long userId, Long productId) {
 
@@ -313,6 +341,12 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
     }
 
     //删除商品
+    @Caching(evict = {
+            @CacheEvict(value = "productDetail", key = "#productId"),
+            @CacheEvict(value = "categoryProducts", allEntries = true),
+            @CacheEvict(value = "recommendProducts", allEntries = true),
+            @CacheEvict(value = "productListBySearch", allEntries = true)
+    })
     @Override
     public Result<Void> deleteProduct(Long userId, Long productId) {
 
@@ -363,6 +397,12 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
     }
 
     //将已下架的商品重新上架
+    @Caching(evict = {
+            @CacheEvict(value = "productDetail", key = "#productId"),
+            @CacheEvict(value = "categoryProducts", allEntries = true),
+            @CacheEvict(value = "recommendProducts", allEntries = true),
+            @CacheEvict(value = "productListBySearch", allEntries = true)
+    })
     @Override
     public Result<Void> republishProduct(Long userId, Long productId) {
 
@@ -420,7 +460,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
         return Result.success();
     }
 
-    //用户的发布商品
+    //查看用户的发布商品
     @Override
     public Result<IPage<Product>> showUserProductList(Long userId,PageRequest pageRequest) {
 
@@ -456,6 +496,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
     }
 
     //查询商品列表
+    @Cacheable(value = "productListBySearch",key = "#request.hashCode()",unless = "#result == null")
     @Override
     public Result<IPage<Product>> showProductList(ProductListRequest productListRequest) {
 
@@ -528,6 +569,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
     }
 
     //根据热度推荐首页商品
+    @Cacheable(value = "recommendProducts",key = "#pageRequest.pageNum + '_' + #pageRequest.pageSize",unless = "#result == null")
     @Override
     public Result<IPage<Product>> recommendProducts(PageRequest pageRequest) {
 
@@ -626,6 +668,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
     }
 
     //分类展示商品
+    @Cacheable(value = "categoryProducts",key = "#request.category + '_' + #request.pageNum + '_' + #request.pageSize",unless = "#result == null")
     @Override
     public Result<IPage<Product>> showByCategory(ShowProductByCategoryRequest request) {
 
@@ -941,6 +984,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
     }
 
     //发布评价
+    @CacheEvict(value = "reviewList",allEntries = true)
     @Override
     public Result<Void> publishReview(Long userId, PublishReviewRequest request) {
         Long productId = request.getProductId();
@@ -1026,6 +1070,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
     }
 
     //删除评价
+    @CacheEvict(value = "reviewList",allEntries = true)
     @Override
     public Result<Void> deleteReview(Long userId, Long reviewId) {
         log.info("删除评价请求:userId={},reviewId={}",userId,reviewId);
@@ -1065,6 +1110,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
     }
 
     //商家回复
+    @CacheEvict(value = "reviewList",allEntries = true)
     @Override
     public Result<Void> replyReview(Long userId, ReplyReviewRequest request) {
         Long reviewId = request.getReviewId();
@@ -1112,6 +1158,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper,Product> imple
     }
 
     //显示评价列表
+    @Cacheable(value = "reviewList",key = "#productId + '_' + #pageRequest.pageNum + '_' + #pageRequest.pageSize",unless = "#result == null")
     @Override
     public Result<Page<Review>> showReviewList(Long userId, Long productId, PageRequest pageRequest) {
         log.info("展示评价列表:productId={}",productId);
